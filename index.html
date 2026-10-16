@@ -281,6 +281,11 @@ h1{font-weight:750}h2{font-weight:710}
 .setup-actions{display:flex;gap:9px;margin-top:20px}.setup-actions .btn{flex:1 1 auto}
 .setup-copy-current{width:100%;margin-top:15px}
 @media(max-width:420px){.setup-welcome{padding-top:5px}.setup-actions .btn{padding:12px 8px}}
+
+.gym-direct-location{margin:12px 0 2px;padding:11px 12px;background:#1b3036;border-radius:12px;border:1px solid #354e57}
+.gym-direct-location>strong{color:var(--accent);font-size:13px}
+.gym-direct-location .gym-map-links{display:flex;flex-wrap:wrap;gap:7px}
+.gym-direct-location .btn{font-size:12px;text-decoration:none}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1848,6 +1853,19 @@ function gymListItem(g){
   '<div class="note">'+esc(g.distance.toFixed(1))+' km away · '+esc(street)+'</div></div>'+
   '<div class="gym-map-links">'+links.map(([name,url])=>'<a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="'+url+'">'+name+' ↗</a>').join('')+'</div></article>';
 }
+
+function gymExactPlaceSearchLinks(){
+ if(!gymPlace)return '';
+ const query=gymChosenAddress?.approximate?gymPlace.split(' · Postal Area')[0]:gymPlace;
+ const g='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(query);
+ const a='https://maps.apple.com/?q='+encodeURIComponent(query);
+ const buttons=gymIsAndroid()?[['Google Maps',g],['Apple Maps',a]]:[['Apple Maps',a],['Google Maps',g]];
+ return '<div class="gym-direct-location"><strong>Can’t Find a Place?</strong>'+
+  '<p class="note">Search the address, business or postal code directly in Maps. Business coverage differs by provider.'+
+  (gymChosenAddress?.approximate?' Postal codes locate an approximate area, not a specific building.':'')+'</p>'+
+  '<div class="gym-map-links">'+buttons.map(([label,url])=>'<a class="btn tiny secondary" target="_blank" rel="noopener noreferrer" href="'+url+'">Find Place in '+label+' ↗</a>').join('')+'</div></div>';
+}
+
 function gymLocator(){
  const hasSearch=gymListStatus!=='idle';
  const details=hasSearch?'<section class="card gym-listings"><div class="row"><h2>Nearby gyms'+(gymListStatus==='loaded'?' ('+gymResults.length+')':'')+'</h2>'+
@@ -1864,7 +1882,7 @@ function gymLocator(){
  '<form id="gym-city-form" autocomplete="off"><label class="input-label" for="gym-city">Or enter an address, street, or city</label>'+
  '<div class="gym-address-combo"><div class="barcode-row"><input class="calorie-date" id="gym-city" type="search" maxlength="180" placeholder="e.g., 123 Main St, Montreal" value="'+esc(gymPlace)+'" role="combobox" aria-autocomplete="list" aria-controls="gym-suggestions" aria-expanded="false" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search" required>'+
  '<button type="submit" class="btn secondary" '+(gymBusy?'disabled':'')+'>Search</button></div><div id="gym-suggestions" class="gym-suggestions" role="listbox" aria-label="Suggested places" hidden></div></div>'+
- '<p class="note">Suggestions appear as you type. Choose one to find gyms near that address. Online suggestions use OpenStreetMap community data.</p></form>'+
+ '<p class="note">Search addresses, named businesses, Canadian postal areas, or US ZIP codes. Select a suggestion to confirm the location. Postal-code results represent an approximate area, not an exact address.</p></form>'+gymExactPlaceSearchLinks()+
  '<label class="input-label" for="gym-radius">Search radius</label><select id="gym-radius">'+
  [2000,5000,10000,20000].map(r=>'<option value="'+r+'" '+(gymRadius===r?'selected':'')+'>'+(r/1000)+' km</option>').join('')+
  '</select><p class="note" id="gym-status" role="status" aria-live="polite">'+esc(gymMessage)+'</p></section>'+
@@ -1956,7 +1974,7 @@ async function gymSearch(lat,lon){
   gymResults=results;gymListStatus='loaded';gymBusy=false;
   gymCachedLookup={key:cacheKey,time:Date.now(),gyms:results};
   gymMessage=results.length?
-   'Found '+results.length+' named gyms within '+radius/1000+' km. Choose a gym below for directions.':
+   (gymChosenAddress?.approximate?'Postal code located approximately. ':'')+'Found '+results.length+' named gyms within '+radius/1000+' km. Choose a gym below for directions.':
    'No nearby gyms were returned by the public listing. Try a larger radius or search in Maps.';
  }catch(error){
   if(request!==gymSearchSequence)return;
@@ -1990,17 +2008,19 @@ function gymNear(){
  }catch(error){gymBusy=false;show('Location request failed. Try Maps instead.')}
 }
 
+
 function gymAddressFeature(feature){
  const p=feature?.properties||{},coords=feature?.geometry?.coordinates;
  if(!Array.isArray(coords)||coords.length<2)return null;
  const lon=Number(coords[0]),lat=Number(coords[1]);
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return null;
  const street=[p.housenumber,p.street].filter(Boolean).join(' ');
- const main=String(street||p.name||p.city||p.district||p.state||p.country||'').trim();
+ // Show business names first; keep the street, locality and postal code in the detail.
+ const named=String(p.name||'').trim(),main=String(named||street||p.city||p.district||p.state||p.country||'').trim();
  if(!main)return null;
- const parts=[p.district,p.city,p.state,p.country].filter(Boolean).map(String);
+ const parts=[...(named&&street?[street]:[]),p.district,p.city,p.state,p.postcode,p.country].filter(Boolean).map(String);
  const subtitle=[...new Set(parts)].filter(s=>s.toLowerCase()!==main.toLowerCase()).join(', ');
- return {main,subtitle,label:[main,subtitle].filter(Boolean).join(', '),lat,lon};
+ return {main,subtitle,label:[main,subtitle].filter(Boolean).join(', '),lat,lon,source:'OpenStreetMap place'};
 }
 function gymParseAddresses(json){
  if(!Array.isArray(json?.features))throw Error('Invalid address results');
@@ -2010,14 +2030,51 @@ function gymParseAddresses(json){
   const k=item.label.toLowerCase()+'|'+item.lat.toFixed(5)+'|'+item.lon.toFixed(5);
   if(unique.has(k))continue;unique.add(k);out.push(item);
  }
- return out.slice(0,7);
+ return out.slice(0,8);
+}
+function gymPostalLookupKey(q){
+ const simple=String(q||'').toUpperCase().replace(/\s|-/g,'');
+ // Canadian API uses 3-character Forward Sortation Areas, not individual homes.
+ if(/^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z](?:\d[ABCEGHJ-NPRSTV-Z]\d)?$/.test(simple))
+  return {country:'ca',code:simple.slice(0,3),display:simple.length===6?simple.slice(0,3)+' '+simple.slice(3):simple,approximate:true};
+ // US ZIP codes represent postal delivery areas, not exact street addresses.
+ if(/^\d{5}(?:\d{4})?$/.test(simple))
+  return {country:'us',code:simple.slice(0,5),display:simple.length===9?simple.slice(0,5)+'-'+simple.slice(5):simple,approximate:true};
+ return null;
+}
+function gymPostalResults(body,input){
+ const places=Array.isArray(body?.places)?body.places:[];
+ const result=[];
+ for(const place of places.slice(0,5)){
+  const lat=Number(place.latitude),lon=Number(place.longitude);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+  const main=input.display+' · Postal Area',subtitle=[place['place name'],place.state,body.country].filter(Boolean).join(', ');
+  result.push({main,subtitle,label:[main,subtitle].join(', '),lat,lon,approximate:true,source:'Postal area centroid'});
+ }
+ return result;
 }
 function gymAddressEndpoint(q){
- let url='https://photon.komoot.io/api?q='+encodeURIComponent(q)+'&limit=8';
- if(gymLocationSource==='device'&&gymCoordinates){
+ let url='https://photon.komoot.io/api?q='+encodeURIComponent(q)+'&limit=12';
+ if(gymLocationSource==='device'&&gymCoordinates)
   url+='&lat='+encodeURIComponent(gymCoordinates.lat)+'&lon='+encodeURIComponent(gymCoordinates.lon);
- }
  return url;
+}
+async function gymResolveAddress(q,signal){
+ const postal=gymPostalLookupKey(q);
+ if(postal){
+  try{
+   const url='https://api.zippopotam.us/'+postal.country+'/'+encodeURIComponent(postal.code);
+   const response=await fetch(url,{method:'GET',signal,headers:{Accept:'application/json'}});
+   if(response.ok){
+    const areas=gymPostalResults(await response.json(),postal);
+    if(areas.length)return areas;
+   }
+  }catch(e){if(signal?.aborted)throw e}
+ }
+ // Photon supports addresses, named POIs/businesses and city autocomplete.
+ const response=await fetch(gymAddressEndpoint(q),{method:'GET',signal,headers:{Accept:'application/json'}});
+ if(!response.ok)throw Error('Location search service unavailable');
+ return gymParseAddresses(await response.json());
 }
 function gymCloseSuggestions(){
  if(gymSuggestTimer!==null){clearTimeout(gymSuggestTimer);gymSuggestTimer=null}
@@ -2065,18 +2122,16 @@ async function gymLookupSuggestions(q,token){
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8500);
  gymSuggestAbort=controller;
  try{
-  const response=await fetch(gymAddressEndpoint(q),{method:'GET',signal:controller.signal,headers:{Accept:'application/json'}});
-  if(!response.ok)throw Error('Address search unavailable');
-  const results=gymParseAddresses(await response.json());
+  const results=await gymResolveAddress(q,controller.signal);
   if(token!==gymSuggestSeq)return;
   gymSuggestions=results;gymHighlighted=-1;
-  gymHint=results.length?'':'No matching addresses. Try a fuller address or city name.';
+  gymHint=results.length?'':'No matches in the free address directory. You can still search this location directly in Apple Maps or Google Maps.';
   if(gymSuggestCache.size>=30)gymSuggestCache.delete(gymSuggestCache.keys().next().value);
   gymSuggestCache.set(cacheKey,results);
  }catch(err){
   if(token!==gymSuggestSeq)return;
   gymSuggestions=[];
-  gymHint='Suggestions are unavailable. You can still tap Search or use Maps.';
+  gymHint='Suggestions are temporarily unavailable. Tap Search or open your location directly in Maps.';
  }finally{
   clearTimeout(timeout);
   if(gymSuggestAbort===controller)gymSuggestAbort=null;
@@ -2102,31 +2157,42 @@ function gymSuggestionKeys(event){
   event.preventDefault();gymPickAddress(gymHighlighted);
  }
 }
+
 async function gymCity(q){
  const query=String(q||'').trim();
- if(!query){gymMessage='Enter an address or city.';render();return}
+ if(!query){gymMessage='Enter an address, business name, city or postal code.';render();return}
  const picked=gymChosenAddress?.label===query?gymChosenAddress:gymSuggestions.find(x=>x.label===query);
  if(picked){gymCloseSuggestions();gymPlace=picked.label;gymChosenAddress={...picked};gymLocationSource='search';gymAccuracy=null;gymSearch(picked.lat,picked.lon);return}
- gymCloseSuggestions();
- gymPlace=query;
- const token=++gymSearchSequence;
- gymCoordinates=null;gymAccuracy=null;gymResults=[];gymListStatus='loading';gymBusy=true;
- gymMessage='Finding address and searching nearby gyms…';render();
+ gymCloseSuggestions();gymPlace=query;
+ const token=++gymSearchSequence;gymCoordinates=null;gymAccuracy=null;gymResults=[];gymListStatus='loading';gymBusy=true;
+ gymMessage='Searching matching addresses and businesses…';render();
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
  try{
-  const json=await gymFetchJSON(gymAddressEndpoint(query),10000);
-  const places=gymParseAddresses(json);
-  if(!places.length)throw Error('Address not found');
+  const places=await gymResolveAddress(query,controller.signal);
   if(token!==gymSearchSequence)return;
-  const item=places[0];
-  gymPlace=item.label;gymChosenAddress={...item};gymLocationSource='search';
-  await gymSearch(item.lat,item.lon);
- }catch(error){
+  gymBusy=false;
+  if(!places.length){
+   gymListStatus='idle';gymMessage='No verified place matched this search. Try adding a city or region, or use the direct Maps searches below.';
+   render();return;
+  }
+  if(places.length>1){
+   // Never silently use the first result: duplicate street and business names
+   // can point to different cities.
+   gymListStatus='idle';gymSuggestions=places;gymSuggestOpen=true;gymHighlighted=-1;
+   gymHint='Choose the correct location from these matches before searching for nearby gyms.';
+   gymMessage='Multiple places match. Select the right address or business from the suggestions.';
+   render();gymShowSuggestions();return;
+  }
+  const place=places[0];
+  gymPlace=place.label;gymChosenAddress={...place};gymLocationSource='search';
+  await gymSearch(place.lat,place.lon);
+ }catch(err){
   if(token!==gymSearchSequence)return;
-  gymBusy=false;gymListStatus='error';
-  gymMessage='Could not identify that address. Include the city and region or use the Maps links below.';render();
- }
+  gymBusy=false;gymListStatus='idle';
+  gymMessage='Location service did not respond. You can still open this business, address or postal code in either Maps app.';
+  render();
+ }finally{clearTimeout(timeout)}
 }
-
 const APP_VERSION='1.21.4',APP_UPDATED_AT='2026-10-16T06:34:07.486Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
