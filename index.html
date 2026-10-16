@@ -335,6 +335,18 @@ h1{font-weight:750}h2{font-weight:710}
 .storage-warning{position:sticky;top:0;z-index:900;padding:12px 18px;background:#57292b;border-bottom:2px solid #e5a6a8;color:#fff0f0;font-size:13px;font-weight:650;line-height:1.5;text-align:center}
 .storage-warning[hidden]{display:none!important}
 .storage-settings-alert{padding:12px;border:1px solid #c6787a;border-radius:12px;background:#44252b;color:#ffe6e7;font-size:13px}
+
+.trainer-pain-fields{border:0;padding:0;margin:6px 0 12px;min-width:0}
+.trainer-pain-fields legend{font-size:15px;font-weight:750;padding:0;color:var(--text)}
+.pain-area-list{display:grid;grid-template-columns:1fr;gap:8px;margin:12px 0}
+.pain-area-item{background:#1b2836;border:1px solid #3e5366;border-radius:11px;padding:10px 12px}
+.pain-area-item.marked{background:#20362f;border-color:#70ba99}
+.pain-area-toggle{display:flex;align-items:center;gap:11px;font-size:14px;font-weight:650;cursor:pointer}
+.pain-area-toggle input{width:20px;height:20px;flex:0 0 20px;accent-color:#7cdeb0}
+.pain-area-rating{display:flex;align-items:center;gap:12px;justify-content:space-between;margin:11px 0 0 31px;font-size:12px;color:#c6d9ce}
+.pain-area-rating select{min-width:140px;max-width:210px;width:auto;min-height:41px;background:var(--surface2);color:var(--text);border:1px solid #536f67;border-radius:9px;padding:8px}
+.daily-readiness-note{margin-top:12px;font-size:12px;line-height:1.55}
+@media(max-width:370px){.pain-area-rating{align-items:flex-start;flex-direction:column;gap:6px}.pain-area-rating select{max-width:100%;width:100%}}
 </style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1285,9 +1297,51 @@ function exerciseAlternatives(name,limit=8,profile=data.trainerProfile){
  .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
 const TRAINER_LIMIT_AREAS=[['knee','Knee'],['hip','Hip / Groin'],['ankle','Ankle / Foot'],['back','Lower Back'],['shoulder','Shoulder'],['elbow','Elbow / Wrist'],['neck','Neck']];
-function trainerDefaultPrefs(){return {goal:'muscle',experience:'beginner',days:3,minutes:45,equipment:'all',limits:[],limitStatus:'past',medical:'unanswered',notes:''}}
-function trainerProfile(p=setupPrefs){return {goal:p.goal,experience:p.experience,days:p.days,minutes:p.minutes,equipment:p.equipment,
- limits:[...(p.limits||[])],limitStatus:p.limits?.length?p.limitStatus:'none',notes:String(p.notes||'').trim().slice(0,180)}}
+function trainerDefaultPrefs(){return {goal:'muscle',experience:'beginner',days:3,minutes:45,equipment:'all',painLevels:{},limits:[],limitStatus:'none',medical:'unanswered'}}
+
+function painScore(value){const v=Number(value);return Number.isInteger(v)&&v>=0&&v<=10?v:0}
+function painLevelsFor(profile){
+ const output={},p=profile||{};
+ for(const [id] of TRAINER_LIMIT_AREAS){
+  if(p.painLevels&&Object.prototype.hasOwnProperty.call(p.painLevels,id)){
+   output[id]=painScore(p.painLevels[id]);continue;
+  }
+  if(Array.isArray(p.limits)&&p.limits.includes(id))output[id]=p.limitStatus==='current'?4:0;
+ }
+ return output;
+}
+function painProfile(p){
+ const painLevels=painLevelsFor(p),limits=Object.keys(painLevels);
+ const severity=Math.max(0,...Object.values(painLevels));
+ return {...p,painLevels,limits,limitStatus:severity>0?'current':limits.length?'past':'none',painSeverity:severity};
+}
+function painFieldsMarkup(p,scope){
+ const values=painLevelsFor(p);
+ const prefix=scope==='setup'?'setup':'daily';
+ return '<div class="pain-area-list">'+TRAINER_LIMIT_AREAS.map(([code,title])=>{
+  const included=Object.prototype.hasOwnProperty.call(values,code),level=included?values[code]:0;
+  return '<div class="pain-area-item'+(included?' marked':'')+'">'+
+    '<label class="pain-area-toggle"><input type="checkbox" data-pain-area="'+prefix+'" value="'+code+'"'+(included?' checked':'')+'>'+
+    '<span>'+esc(title)+'</span></label>'+
+    (included?'<label class="pain-area-rating">Pain Right Now <select data-pain-score="'+prefix+'" data-area="'+code+'" aria-label="'+esc(title)+' pain level">'+
+      Array.from({length:11},(_,n)=>'<option value="'+n+'"'+(n===level?' selected':'')+'>'+
+       n+' / 10'+(n===0?' · No Pain':n<=3?' · Mild':n<=6?' · Moderate':' · High')+'</option>').join('')+
+      '</select></label>':'')+'</div>';
+ }).join('')+'</div>';
+}
+function hasHighPain(profile){return Object.values(painLevelsFor(profile)).some(n=>n>=7)}
+function painSummary(profile){
+ const levels=painLevelsFor(profile);
+ return Object.entries(levels).map(([area,n])=>(TRAINER_LIMIT_AREAS.find(x=>x[0]===area)?.[1]||area)+' '+n+'/10').join(', ')||'No areas selected';
+}
+
+function trainerProfile(p=setupPrefs){
+ const normalized=painProfile(p);
+ return {goal:normalized.goal,experience:normalized.experience,days:normalized.days,minutes:normalized.minutes,
+ equipment:normalized.equipment,limits:normalized.limits,limitStatus:normalized.limitStatus,
+ painLevels:normalized.painLevels};
+}
+
 function trainerAreaRisk(name,area){
  const v=String(name||'').toLowerCase();
  if(area==='knee')return /squat|lunge|step.up|leg press|leg extension|jump|thruster|pistol|split squat|deadlift|romanian|calf raise|standing calf/.test(v);
@@ -1300,8 +1354,9 @@ function trainerAreaRisk(name,area){
  return false;
 }
 function trainerCaution(name,profile=data.trainerProfile){
- const limits=Array.isArray(profile?.limits)?profile.limits:[];
- return limits.filter(area=>trainerAreaRisk(name,area)).map(a=>TRAINER_LIMIT_AREAS.find(x=>x[0]===a)?.[1]||a);
+ const levels=painLevelsFor(profile);
+ return Object.keys(levels).filter(area=>levels[area]>0&&trainerAreaRisk(name,area))
+ .map(a=>(TRAINER_LIMIT_AREAS.find(x=>x[0]===a)?.[1]||a)+' ('+levels[a]+'/10)');
 }
 function trainerEquipmentFit(name,equipment){
  const v=String(name).toLowerCase();
@@ -1325,14 +1380,14 @@ const TRAINER_EQUIPMENT_POOLS={
  cables:{squat:['Bodyweight Squat','Split Squat','Pistol Squat'],hinge:['Glute Bridge','Back Extension'],push:['Cable Fly','Push-Up','One-Arm Cable Fly'],pull:['Seated Cable Row','One-Arm Cable Row','Lat Pulldown'],arms:['Cable Biceps Curl','Cable Triceps Pushdown','Triceps Rope Pressdown'],accessory:['Cable Face Pull','Cable Lateral Raise','Pallof Press'],core:['Pallof Press','Cable Crunch','Dead Bug','Side Plank'],recovery:['Dead Bug','Bird Dog','Pallof Press','Cable External Rotation']}
 };
 function trainerCanUse(name,profile){
- if(!trainerEquipmentFit(name,profile.equipment))return false;
- if(profile.limitStatus==='current'){
-  const limited=profile.limits||[],group=identifyExercise(name).group;
-  // Conservative group-level screening; it is not a determination of safety.
-  if(limited.some(a=>['knee','hip','ankle'].includes(a))&&group==='legs')return false;
-  if(limited.includes('shoulder')&&group==='push')return false;
-  if(limited.some(area=>trainerAreaRisk(name,area)))return false;
- }
+ if(!trainerEquipmentFit(name,profile?.equipment))return false;
+ const normalized=painProfile(profile);
+ const symptomatic=Object.entries(normalized.painLevels).filter(([area,n])=>n>0).map(([area])=>area);
+ if(!symptomatic.length)return true;
+ const group=identifyExercise(name).group;
+ if(symptomatic.some(area=>['knee','hip','ankle'].includes(area))&&group==='legs')return false;
+ if(symptomatic.includes('shoulder')&&group==='push')return false;
+ if(symptomatic.some(area=>trainerAreaRisk(name,area)))return false;
  return true;
 }
 function trainerChoose(group,profile,index,used){
@@ -1343,6 +1398,7 @@ function trainerChoose(group,profile,index,used){
 }
 function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
  const profile={...trainerProfile(prefs),goal,days,equipment};
+ if(hasHighPain(profile))throw Error('High pain was reported. Do not automatically create a workout; seek personalized professional advice first.');
  const novice=['beginner','returning'].includes(profile.experience),sets=novice?2:profile.experience==='experienced'?4:3;
  const reps=goal==='strength'?(novice?'6–10':'5–8'):goal==='general'?'10–15':'8–12';
  const maxExercises=profile.minutes<=25?3:profile.minutes<=35?4:profile.minutes<=50?5:6;
@@ -1365,7 +1421,7 @@ function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
   if(!workout.length)throw Error('No exercises meet these equipment and limitation settings. Request individualized coaching before proceeding.');
   list.push([(light?'Light / Recovery ':'Full Body ')+workoutLetter(i),workout]);
  }
- if(profile.limitStatus==='current'&&profile.limits.length)notes.push('Current pain or unresolved limitations: associated movements were filtered, but remaining exercises are not guaranteed safe or pain-free. Seek individualized assessment.');
+ if(profile.limitStatus==='current'&&profile.limits.length)notes.push('Your reported pain levels: '+painSummary(profile)+'. Related movements were omitted; no exercise is guaranteed pain-free or medically safe. Seek individualized guidance for persistent symptoms.');
  else if(profile.limits.length)notes.push('Past limitations are noted. Review each exercise and avoid movements that provoke symptoms.');
  if(days>4)notes.push('Includes '+lighter.length+' lighter / recovery-focused sessions spaced through the week rather than hard strength training every day.');
  if(novice)notes.push('Lower starting volume for a new or returning trainee, with gradual progression.');
@@ -1434,15 +1490,10 @@ function setupPreferencesInput(){
   '<label class="input-label" for="gen-equipment">What equipment can you use regularly?</label>'+
   trainerOptions('gen-equipment',[['all','Full Gym'],['dumbbells','Dumbbells & Bodyweight'],['cables','Cables & Bodyweight']],p.equipment):
  setupStep===4?
-  '<fieldset class="trainer-limits"><legend>Any current pain, past injuries, or movements you want to be cautious with? (Optional)</legend>'+
-  '<p class="note">Choose areas you want considered. You do not need to share a diagnosis. Optional details are saved on this device and included in your exported backup.</p>'+
-  TRAINER_LIMIT_AREAS.map(([code,label])=>'<label><input type="checkbox" name="trainer-limit" value="'+code+'"'+
-   ((p.limits||[]).includes(code)?' checked':'')+'><span>'+label+'</span></label>').join('')+'</fieldset>'+
-  '<label class="input-label" for="gen-limit-status">If you selected an area, which best describes it?</label>'+
-  trainerOptions('gen-limit-status',[['past','Past Issue / No Current Pain'],['current','Current Pain or Unresolved Issue']],p.limitStatus)+
-  '<label class="input-label" for="gen-limit-notes">Any movement restrictions given by a professional? (Optional)</label>'+
-  '<textarea id="gen-limit-notes" rows="2" maxlength="180" placeholder="e.g., Avoid heavy overhead lifting">'+esc(p.notes||'')+'</textarea>'+
-  '<p class="trainer-safety-hint">The app can flag related movements, but cannot determine which exercises are medically safe. Avoid anything that causes or worsens pain. For a recent or active injury, seek individualized advice.</p>':
+  '<fieldset class="trainer-pain-fields"><legend>Any body areas you want considered? (Optional)</legend>'+
+  '<p class="note">Select each affected area and give it its own current pain level (0–10). A past injury with no current pain can be rated 0. You do not need to enter diagnoses or other private details.</p>'+
+  painFieldsMarkup(p,'setup')+
+  '<p class="trainer-safety-hint">These answers are screening flags, not medical diagnoses. Related exercises may be excluded, but no remaining movement is guaranteed safe. Stop if exercise causes or worsens pain.</p></fieldset>':
   '<fieldset class="trainer-health-check"><legend>Before starting, do any of these apply?</legend>'+
   '<p class="note">Chest pain/pressure during activity, fainting or unexplained dizziness, unusual shortness of breath at mild effort, or being told by a clinician to avoid exercise.</p>'+
   '<label for="gen-medical" class="input-label">Your Answer</label>'+
@@ -1463,9 +1514,12 @@ function rememberSetupAnswer(){
  if([20,30,45,60].includes(minutes))setupPrefs.minutes=minutes;
  if(['all','dumbbells','cables'].includes(value('gen-equipment')))setupPrefs.equipment=value('gen-equipment');
  if(setupStep===4){
-  setupPrefs.limits=[...document.querySelectorAll('input[name="trainer-limit"]:checked')].map(x=>x.value).filter(x=>TRAINER_LIMIT_AREAS.some(a=>a[0]===x));
-  if(['past','current'].includes(value('gen-limit-status')))setupPrefs.limitStatus=value('gen-limit-status');
-  setupPrefs.notes=String(value('gen-limit-notes')||'').slice(0,180);
+  const chosen=[...document.querySelectorAll('[data-pain-area="setup"]:checked')].map(x=>x.value);
+  const levels={};for(const id of chosen){
+   const field=document.querySelector('[data-pain-score="setup"][data-area="'+id+'"]');
+   levels[id]=field?painScore(field.value):painScore(setupPrefs.painLevels?.[id]);
+  }
+  setupPrefs.painLevels=levels;setupPrefs.limits=chosen;
  }
  if(['no','yes','unsure','unanswered'].includes(value('gen-medical')))setupPrefs.medical=value('gen-medical');
 }
@@ -1474,6 +1528,7 @@ function setupNext(){
  if(setupStep<TRAINER_SETUP_STEPS.length-1){
   setupStep++;render();document.getElementById('program-builder')?.scrollIntoView({block:'nearest'});return;
  }
+ if(hasHighPain(setupPrefs)){alert('You reported high pain (7–10). Lift Journal will not automatically prescribe exercise for this situation. Seek individualized advice from a qualified healthcare professional.');return}
  if(setupPrefs.medical!=='no'){
   alert('Before starting a new program, please seek advice from a qualified healthcare professional about the symptoms or concern selected. Lift Journal cannot provide medical clearance.');return;
  }
