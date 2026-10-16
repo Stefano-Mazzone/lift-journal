@@ -106,9 +106,58 @@ function scheduledWorkoutDate(s){
  return s.started&&!Number.isNaN(Date.parse(s.started))?isoDate(new Date(s.started)):isoDate(new Date());
 }
 function workoutChartDate(s){return scheduledWorkoutDate(s)+'T12:00:00'}
+
+function missingRepsFromProgram(s){
+ const plan=cycleForSession(s),dayPlan=plan?.days?.[s.day]?.[1];
+ if(!Array.isArray(dayPlan)||!Array.isArray(s.exercises))return [];
+ const updates=[];
+ s.exercises.forEach((ex,i)=>{
+  if(!ex||ex.skipped||!Array.isArray(ex.sets))return;
+  const original=String(ex.originalName||ex.name||'').trim().toLocaleLowerCase();
+  const current=String(ex.name||'').trim().toLocaleLowerCase();
+  const prescription=dayPlan.find(d=>d&&String(d.name||'').trim().toLocaleLowerCase()===original)||
+                     dayPlan.find(d=>d&&String(d.name||'').trim().toLocaleLowerCase()===current);
+  if(!prescription)return;
+  const reps=prescribedReps(prescription.reps);
+  if(!reps)return;
+  ex.sets.forEach((set,j)=>{
+   // Blank only. Keep any rep value, including an intentional 0.
+   if(set&&(set.reps===null||set.reps===undefined||String(set.reps).trim()===''))
+    updates.push({set,reps,exercise:ex.name,index:j+1});
+  });
+ });
+ return updates;
+}
+function applyMissingReps(updates){
+ for(const u of updates)u.set.reps=u.reps;
+ return updates.length;
+}
+function fillMissingSessionReps(){
+ const session=data.sessions[editing];
+ if(!session)return;
+ const updates=missingRepsFromProgram(session);
+ if(!updates.length){toast('No missing reps with a saved program target');return}
+ if(session.finished){
+  const sample=updates[0];
+  const message='Fill '+updates.length+' blank rep field'+(updates.length===1?'':'s')+
+   ' from the targets saved with this workout (for example '+sample.reps+' reps for '+sample.exercise+')?\n\n'+
+   'These are SUGGESTED reps, not proof of what you actually performed. Review and correct them afterward. Existing reps and all weights will stay unchanged.';
+  if(!confirm(message))return;
+  editingPast=true;
+ }
+ const filled=applyMissingReps(updates);
+ save();render();toast('Filled '+filled+' blank rep field'+(filled===1?'':'s')+' · review actual reps');
+}
 function openWorkout(id,edit=false){
- if(!data.sessions[id])return;
- editing=id;editingPast=!!(edit&&data.sessions[id].finished);tab='train';selectedSlot=null;render();scrollTo(0,0);
+ const session=data.sessions[id];if(!session)return;
+ // Previously started workouts gain their saved program targets when resumed.
+ // Completed sessions are never changed without a separate user action.
+ if(!session.finished){
+  const filled=applyMissingReps(missingRepsFromProgram(session));
+  if(filled)save();
+ }
+ editing=id;editingPast=!!(edit&&session.finished);tab='train';selectedSlot=null;
+ render();scrollTo(0,0);
 }
 function toggleCompletedEdit(){
  const s=data.sessions[editing];if(!s?.finished)return;
@@ -254,7 +303,14 @@ function sessionView(){
   });
   output+='</section>';
  });
- output+='<section class="card"><p class="note">Reps start at the low end of your program range. Change them to what you actually completed, and add or remove sets as needed. Weights start blank; edits save automatically on this device.</p>'+(s.finished?'<div class="stack">'+button(editingPast?'Done editing':'Edit recorded values','edit-completed','secondary')+button('Mark as In progress (Uncomplete)','reopen-workout','secondary')+button('Back to history','history','secondary')+'</div>':button('Finish & save workout','finish'))+'</section>';
+ const blankReps=missingRepsFromProgram(s).length;
+ output+='<section class="card"><p class="note">Program reps are suggested starting values, not confirmed performance. Review them and enter the reps you actually did. Adding/removing sets and changing weights or reps saves on this device.</p>'+
+ (blankReps?'<p class="note">'+blankReps+' blank rep field'+(blankReps===1?'':'s')+' can be filled from this workout\'s original plan.</p>':'')+
+ (s.finished?'<div class="stack">'+(blankReps?button('Fill '+blankReps+' missing reps from plan','fill-missing-reps','secondary'):'')+
+ button(editingPast?'Done editing':'Edit recorded values','edit-completed','secondary')+
+ button('Mark as In progress (Uncomplete)','reopen-workout','secondary')+
+ button('Back to history','history','secondary')+'</div>':
+ '<div class="stack">'+(blankReps?button('Fill missing reps from plan','fill-missing-reps','secondary'):'')+button('Finish & save workout','finish')+'</div>')+'</section>';
  return output;
 }
 function train(){if(editing&&data.sessions[editing])return sessionView();let active=findActive(),c=cycleFor(month);return header(`<h1>Train</h1><p class="sub">Start a scheduled workout, select another day, or pick up where you left off.</p>`)+monthControl()+(active?`<div class="card hero"><h2>Unfinished workout</h2><p class="muted">Started ${new Date(active.started).toLocaleString()}</p>${button('Resume session','resume')}</div>`:'')+scheduleView()+dayCards()+`<section class="card"><h2>${esc(c.days[day][0])}</h2>${c.days[day][1].map(e=>`<div class="row" style="border-top:1px solid var(--line);padding:11px 0"><div class="exercise-summary"><div class="exercise-summary-title">${esc(e.name)}</div>${previousPreview(e)}</div><strong style="white-space:nowrap">${e.sets} × ${esc(e.reps)}</strong></div>`).join('')}${button('Start new workout','start')}</section>`}
@@ -1079,7 +1135,7 @@ function gymCity(q){
  render();
  document.querySelector('.gym-map-card')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
-const APP_VERSION='1.18.1',APP_UPDATED_AT='2026-10-16T04:59:46.972Z';
+const APP_VERSION='1.18.2',APP_UPDATED_AT='2026-10-16T05:03:40.420Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
@@ -1167,7 +1223,7 @@ function initTabNavigation(){
   }
  }catch(e){if(!next.classList.contains('is-hidden'))next.classList.add('hint-bounce')}
 }
-document.addEventListener('click',e=>{const t=e.target.closest('[data-edit-session],[data-food-example],[data-food-pick],[data-calorie-delete],[data-movement-key],[data-movement],[data-tab],[data-action],[data-day],[data-open],[data-slot],[data-skip],[data-calendar-date]');if(!t)return;if(t.dataset.editSession){openWorkout(t.dataset.editSession,true);return}if(t.dataset.foodExample){findFoods(t.dataset.foodExample);return}if(t.dataset.foodPick!==undefined){chooseFood(Number(t.dataset.foodPick));return}if(t.dataset.calorieDelete){const n=calorieInfo();n.entries[calorieDay]=(n.entries[calorieDay]||[]).filter(x=>x.id!==t.dataset.calorieDelete);save();render();return}if(t.dataset.movementKey){movementSelected=t.dataset.movementKey;render();return}if(t.dataset.movement){changeMovement(Number(t.dataset.index),t.dataset.movement);return}if(t.dataset.tab){stopBarcodeCamera();editing=null;editingPast=false;tab=t.dataset.tab;render();showSelectedNavTab();scrollTo(0,0);return}if(t.dataset.day!==undefined){day=Number(t.dataset.day);selectedSlot=null;render();return}if(t.dataset.calendarDate){const match=monthSchedule().find(a=>a.date===t.dataset.calendarDate);if(match){selectedSlot=match.slot;day=match.day;render();document.querySelector('.move-panel')?.scrollIntoView({block:'nearest'});}return}if(t.dataset.slot){selectedSlot=t.dataset.slot;day=Number(t.dataset.planDay);render();return}if(t.dataset.skip){const key=t.dataset.skip,old=data.schedule[key]||{};data.schedule[key]={...old,status:old.status==='skipped'?'planned':'skipped'};if(selectedSlot===key)selectedSlot=null;save();render();return}if(t.dataset.open){openWorkout(t.dataset.open);return}switch(t.dataset.action){case'move':{if(!selectedSlot)return;const v=document.getElementById('move-date')?.value;if(!v||!v.startsWith(month+'-')){alert('Choose a date in this month.');return}const old=data.schedule[selectedSlot]||{};data.schedule[selectedSlot]={...old,date:v,status:'planned'};save();selectedSlot=null;render();toast('Workout moved');break}case'advance':startNextProgram();break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'barcode-camera':startBarcodeCamera();break;case'barcode-stop':stopBarcodeCamera();updateBarcodeMessage('Camera stopped.');break;case'add-scanned':addScannedFood();break;case'generate':{const goal=document.getElementById('gen-goal').value,days=Number(document.getElementById('gen-days').value),eq=document.getElementById('gen-equipment').value;activateCustomPlan(generatedRoutine(goal,days,eq));break}case'save-plan':saveBuilder();break;case'prev':selectedSlot=null;shiftMonth(-1);break;case'next':selectedSlot=null;shiftMonth(1);break;case'start':if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':editing=findActive()?.key;render();break;case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':if(confirm('Delete ALL workouts saved on this browser? This cannot be undone.')){data.sessions={};data.schedule={};data.program={index:0,number:1,started:new Date().toISOString(),history:[]};save();editing=null;render();toast('Local workout history cleared')}break}});
+document.addEventListener('click',e=>{const t=e.target.closest('[data-edit-session],[data-food-example],[data-food-pick],[data-calorie-delete],[data-movement-key],[data-movement],[data-tab],[data-action],[data-day],[data-open],[data-slot],[data-skip],[data-calendar-date]');if(!t)return;if(t.dataset.editSession){openWorkout(t.dataset.editSession,true);return}if(t.dataset.foodExample){findFoods(t.dataset.foodExample);return}if(t.dataset.foodPick!==undefined){chooseFood(Number(t.dataset.foodPick));return}if(t.dataset.calorieDelete){const n=calorieInfo();n.entries[calorieDay]=(n.entries[calorieDay]||[]).filter(x=>x.id!==t.dataset.calorieDelete);save();render();return}if(t.dataset.movementKey){movementSelected=t.dataset.movementKey;render();return}if(t.dataset.movement){changeMovement(Number(t.dataset.index),t.dataset.movement);return}if(t.dataset.tab){stopBarcodeCamera();editing=null;editingPast=false;tab=t.dataset.tab;render();showSelectedNavTab();scrollTo(0,0);return}if(t.dataset.day!==undefined){day=Number(t.dataset.day);selectedSlot=null;render();return}if(t.dataset.calendarDate){const match=monthSchedule().find(a=>a.date===t.dataset.calendarDate);if(match){selectedSlot=match.slot;day=match.day;render();document.querySelector('.move-panel')?.scrollIntoView({block:'nearest'});}return}if(t.dataset.slot){selectedSlot=t.dataset.slot;day=Number(t.dataset.planDay);render();return}if(t.dataset.skip){const key=t.dataset.skip,old=data.schedule[key]||{};data.schedule[key]={...old,status:old.status==='skipped'?'planned':'skipped'};if(selectedSlot===key)selectedSlot=null;save();render();return}if(t.dataset.open){openWorkout(t.dataset.open);return}switch(t.dataset.action){case'move':{if(!selectedSlot)return;const v=document.getElementById('move-date')?.value;if(!v||!v.startsWith(month+'-')){alert('Choose a date in this month.');return}const old=data.schedule[selectedSlot]||{};data.schedule[selectedSlot]={...old,date:v,status:'planned'};save();selectedSlot=null;render();toast('Workout moved');break}case'advance':startNextProgram();break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'barcode-camera':startBarcodeCamera();break;case'barcode-stop':stopBarcodeCamera();updateBarcodeMessage('Camera stopped.');break;case'add-scanned':addScannedFood();break;case'generate':{const goal=document.getElementById('gen-goal').value,days=Number(document.getElementById('gen-days').value),eq=document.getElementById('gen-equipment').value;activateCustomPlan(generatedRoutine(goal,days,eq));break}case'save-plan':saveBuilder();break;case'prev':selectedSlot=null;shiftMonth(-1);break;case'next':selectedSlot=null;shiftMonth(1);break;case'start':if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':if(confirm('Delete ALL workouts saved on this browser? This cannot be undone.')){data.sessions={};data.schedule={};data.program={index:0,number:1,started:new Date().toISOString(),history:[]};save();editing=null;render();toast('Local workout history cleared')}break}});
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
 document.addEventListener('submit',e=>{if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;if(t.id==='barcode-photo'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.id==='plan-days'){document.querySelectorAll('[data-builder-day]').forEach((el,i)=>el.hidden=i>=Number(t.value));return}if(t.dataset.weekday!==undefined){let i=Number(t.dataset.weekday),v=Number(t.value);if(data.weekdays.some((d,j)=>j!==i&&d===v)){alert('Choose a different weekday for each workout.');render();return}data.weekdays[i]=v;save();render();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p)p.style.width=(100*completed/total)+'%'}}});
 document.addEventListener('change',async e=>{if(e.target.id!=='import')return;let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text()),obj=incoming.data||incoming;if(!obj.sessions||typeof obj.sessions!=='object'||Array.isArray(obj.sessions)||!['kg','lb'].includes(obj.unit))throw Error('Invalid file');if(!confirm('Replace all currently saved workouts with this backup?'))return;data={sessions:obj.sessions,unit:obj.unit,weekdays:Array.isArray(obj.weekdays)&&obj.weekdays.length===3?obj.weekdays:[1,3,5],schedule:obj.schedule||{},program:obj.program&&Number.isInteger(obj.program.index)?obj.program:{index:0,number:1,started:new Date().toISOString(),history:[]},customPlan:obj.customPlan||null,nutrition:obj.nutrition||{goal:2000,entries:{}}};if(!Array.isArray(data.program.history))data.program.history=[];save();editing=null;tab='history';render();toast('Backup restored')}catch(err){alert('Cannot import backup: '+err.message)}e.target.value=''});
