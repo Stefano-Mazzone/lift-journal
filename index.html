@@ -302,7 +302,7 @@ if(!Array.isArray(data.weekdays)||!data.weekdays.length||data.weekdays.length>7|
 // Older users had an active default program without a separate setup flag.
 // Preserve earlier actual sessions and custom programs, but don't treat the\n// old automatically provided sample template as a consciously created plan.
 if(typeof data.hasProgram!=='boolean')data.hasProgram=!!(data.customPlan||Object.keys(data.sessions||{}).length||Object.keys(data.schedule||{}).length||data.program.number>1||data.program.history.length);
-let month=initialMonth,tab='home',day=0,editing=null,selectedSlot=null,selectedDate=null,editingPast=false,builderVisible=false,draftPlan=null,draftExpanded=0,swapPicker=null,setupStep=0,setupPrefs={goal:'muscle',days:3,equipment:'all'};const el=document.getElementById('app');
+let month=initialMonth,tab='home',day=0,editing=null,selectedSlot=null,selectedDate=null,editingPast=false,builderVisible=false,draftPlan=null,draftExpanded=0,swapPicker=null,setupStep=0,setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};const el=document.getElementById('app');
 function save(){localStorage.setItem(KEY,JSON.stringify(data))}function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function cycleFor(m){return data.customPlan||cycles[data.program.index%cycles.length]}
 function cycleForSession(s){if(s.planSnapshot)return s.planSnapshot;if(Number.isInteger(s.cycleIndex))return cycles[s.cycleIndex%cycles.length];const [y,mo]=s.month.split('-').map(Number);return cycles[(y*12+mo-1)%cycles.length]}
@@ -1065,19 +1065,81 @@ function exerciseAlternatives(name,limit=8){
  .filter(r=>r.score>=25).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
 
-function generatedRoutine(goal,days,equipment){
- const strength=goal==='strength',general=goal==='general',sets=strength?4:general?2:3,reps=strength?'5–8':general?'10–15':'8–12';
- const choose=(group,i)=>{
-  let arr=exerciseBank[group].filter(x=>equipment==='dumbbells'?(!/Cable|Pulldown|Pendulum|Leg Curl|Bench Press$/.test(x)||x==='Dumbbell Bench Press'):equipment==='cables'? !/Dumbbell|Pendulum|Leg Curl|Flat Bench/.test(x):true);
-  if(!arr.length)arr=exerciseBank[group];
-  return arr[i%arr.length];
- };
- const planDays=[];
+
+const TRAINER_LIMIT_AREAS=[['knee','Knee'],['hip','Hip / Groin'],['ankle','Ankle / Foot'],['back','Lower Back'],['shoulder','Shoulder'],['elbow','Elbow / Wrist'],['neck','Neck']];
+function trainerDefaultPrefs(){return {goal:'muscle',experience:'beginner',days:3,minutes:45,equipment:'all',limits:[],limitStatus:'past',medical:'unanswered',notes:''}}
+function trainerProfile(p=setupPrefs){return {goal:p.goal,experience:p.experience,days:p.days,minutes:p.minutes,equipment:p.equipment,
+ limits:[...(p.limits||[])],limitStatus:p.limits?.length?p.limitStatus:'none',notes:String(p.notes||'').trim().slice(0,180)}}
+function trainerAreaRisk(name,area){
+ const v=String(name||'').toLowerCase();
+ if(area==='knee')return /squat|lunge|step.up|leg press|leg extension|jump|thruster|pistol|split squat/.test(v);
+ if(area==='hip')return /squat|lunge|step.up|deadlift|hip thrust|bridge|leg press|split squat|jump/.test(v);
+ if(area==='ankle')return /squat|lunge|step.up|calf|jump|run|walk|split squat/.test(v);
+ if(area==='back')return /deadlift|romanian|good morning|bent.over|back squat|front squat|overhead|shrug|hyperextension|rack pull/.test(v);
+ if(area==='shoulder')return /shoulder|overhead|press|bench|fly|lateral|front raise|dip|push.up|snatch|jerk/.test(v);
+ if(area==='elbow')return /curl|triceps|pressdown|extension|bench|press|dip/.test(v);
+ if(area==='neck')return /overhead|neck|shrug|back squat|front squat|shoulder press/.test(v);
+ return false;
+}
+function trainerCaution(name,profile=data.trainerProfile){
+ const limits=Array.isArray(profile?.limits)?profile.limits:[];
+ return limits.filter(area=>trainerAreaRisk(name,area)).map(a=>TRAINER_LIMIT_AREAS.find(x=>x[0]===a)?.[1]||a);
+}
+function trainerEquipmentFit(name,equipment){
+ const v=String(name).toLowerCase();
+ if(!equipment||equipment==='all')return true;
+ if(equipment==='dumbbells')return !/barbell|smith|machine|cable|pulldown|pulley|pec deck|leg press|pendulum|seated leg curl|rack pull/.test(v);
+ if(equipment==='cables')return !/barbell|dumbbell|ez.bar|smith|leg press|pendulum|hack squat|kettlebell|machine row|leg curl machine/.test(v);
+ return true;
+}
+const TRAINER_POOLS={
+ squat:['Goblet Squat','Leg Press','Back Squat','Bodyweight Squat','Dumbbell Split Squat'],
+ hinge:['Dumbbell Romanian Deadlift','Romanian Deadlift','Barbell Hip Thrust','Glute Bridge','Back Extension'],
+ push:['Dumbbell Bench Press','Flat Dumbbell Chest Press','Chest Press Machine','Push-Up','Cable Fly'],
+ pull:['Seated Cable Row','One-Arm Dumbbell Row','Chest-Supported Dumbbell Row','Lat Pulldown','Inverted Row'],
+ arms:['Dumbbell Curl','Hammer Curl','Cable Biceps Curl','EZ-Bar Curl','Triceps Rope Pressdown'],
+ accessory:['Dumbbell Lateral Raise','Cable Face Pull','Seated Calf Raise','Pallof Press','Triceps Rope Pressdown'],
+ core:['Dead Bug','Bird Dog','Pallof Press','Side Plank','Cable Crunch'],
+ recovery:['Dead Bug','Bird Dog','Side-Lying Clam','Pallof Press','Cable External Rotation','Plank']
+};
+function trainerCanUse(name,profile){
+ return trainerEquipmentFit(name,profile.equipment)&&!(profile.limitStatus==='current'&&(profile.limits||[]).some(area=>trainerAreaRisk(name,area)));
+}
+function trainerChoose(group,profile,index,used){
+ const candidates=(TRAINER_POOLS[group]||[]).filter(name=>trainerCanUse(name,profile)&&!used.has(name));
+ if(!candidates.length)return null;
+ const name=candidates[index%candidates.length];used.add(name);return name;
+}
+function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
+ const profile={...trainerProfile(prefs),goal,days,equipment};
+ const novice=['beginner','returning'].includes(profile.experience),sets=novice?2:profile.experience==='experienced'?4:3;
+ const reps=goal==='strength'?(novice?'6–10':'5–8'):goal==='general'?'10–15':'8–12';
+ const maxExercises=profile.minutes<=25?3:profile.minutes<=35?4:profile.minutes<=50?5:6;
+ const hardDays=Math.min(days,4),list=[],notes=[];
  for(let i=0;i<days;i++){
-  const names=[choose('legs',i),choose('push',i),choose('pull',i),choose('legs',i+1),choose(i%2?'pull':'push',i+2)];
-  planDays.push(['Full Body '+String.fromCharCode(65+i),names.map((name,j)=>X(name,j===4?2:sets,j===4?'12–15':reps,j===0?120:90))]);
+  const light=days>=5&&i>=hardDays,used=new Set(),workout=[];
+  const pools=light?['recovery','core','accessory']:i%2===0?
+   ['squat','push','pull','hinge','arms','core']:
+   ['hinge','pull','push','squat','accessory','core'];
+  for(let j=0;j<pools.length&&workout.length<(light?Math.min(3,maxExercises):maxExercises);j++){
+   const name=trainerChoose(pools[j],profile,i+j,used);
+   if(!name)continue;
+   workout.push(X(name,light?1:j>=4?Math.max(1,sets-1):sets,light?'8–12':j===4?'10–15':reps,light?45:j<2?120:75));
+  }
+  if(!workout.length){
+   const name=trainerChoose('recovery',profile,i,used);if(name)workout.push(X(name,1,'8–12',45));
+  }
+  if(!workout.length)throw Error('No exercises meet these equipment and limitation settings. Request individualized coaching before proceeding.');
+  list.push([(light?'Light / Recovery ':'Full Body ')+workoutLetter(i),workout]);
  }
- return {label:'Personalized '+(goal==='muscle'?'Muscle Builder':goal==='strength'?'Strength Plan':'Fitness Plan'),focus:'Generated for '+days+' training days',days:planDays};
+ if(profile.limitStatus==='current'&&profile.limits.length)notes.push('Current pain or unresolved limitations: associated movements were filtered, but remaining exercises are not guaranteed safe or pain-free. Seek individualized assessment.');
+ else if(profile.limits.length)notes.push('Past limitations are noted. Review each exercise and avoid movements that provoke symptoms.');
+ if(days>4)notes.push('Includes '+(days-hardDays)+' lighter sessions rather than prescribing hard strength training seven days per week.');
+ if(novice)notes.push('Lower starting volume for a new or returning trainee, with gradual progression.');
+ notes.push('General exercise guidance only, not diagnosis or rehabilitation.');
+ return {label:'Personalized '+(goal==='muscle'?'Muscle Builder':goal==='strength'?'Strength Plan':'Fitness Plan'),
+ focus:days+' planned days · '+profile.minutes+' min/session · '+(novice?'gradual':'progressive')+' training',
+ days:list,trainerNotes:notes,trainerProfile:profile};
 }
 function programDraftClone(plan){return JSON.parse(JSON.stringify(plan))}
 function workoutLetter(index){return 'ABCDEFG'[index]||String(index+1)}
@@ -1221,8 +1283,8 @@ function activateCustomPlan(plan){
  const old=data.program;
  if(data.hasProgram){old.history.push({number:old.number,index:old.index,started:old.started,ended:new Date().toISOString()});old.number+=1}
  old.started=new Date().toISOString();data.hasProgram=true;
- data.customPlan=programDraftClone(plan);data.schedule={};
- data.weekdays=weekdaysForCount(plan.days.length);setupStep=0;setupPrefs={goal:'muscle',days:data.weekdays.length,equipment:'all'};
+ data.customPlan=programDraftClone(plan);data.trainerProfile=programDraftClone(plan.trainerProfile||trainerProfile());data.schedule={};
+ data.weekdays=weekdaysForCount(plan.days.length);setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'};
  selectedSlot=null;selectedDate=null;day=0;editing=null;builderVisible=false;draftPlan=null;draftExpanded=0;
  save();tab='home';render();toast('New program active');return true;
 }
@@ -2285,7 +2347,7 @@ function initTabNavigation(){
 document.addEventListener('click',e=>{const t=e.target.closest('[data-picker-select],[data-picker-more],[data-picker-close],[data-picker-custom],[data-draft-browse],[data-workout-date],[data-draft-day],[data-draft-remove],[data-weekday-toggle],[data-workout-choice],[data-gym-pick],[data-history-jump],[data-history-date],[data-restore-skipped],[data-edit-session],[data-food-example],[data-food-pick],[data-calorie-delete],[data-movement-key],[data-movement],[data-tab],[data-action],[data-day],[data-open],[data-slot],[data-skip],[data-calendar-date]');if(!t)return;if(t.dataset.pickerSelect!==undefined){pickExercise(t.dataset.pickerSelect);return}if(t.dataset.pickerMore!==undefined){if(swapPicker){swapPicker.limit+=75;refreshExercisePickerResults()}return}if(t.dataset.pickerClose!==undefined){closeExercisePicker();return}if(t.dataset.pickerCustom!==undefined){pickExercise(document.getElementById('exercise-picker-custom')?.value);return}if(t.dataset.draftBrowse!==undefined){openExercisePicker('draft',Number(t.dataset.draftBrowse));return}if(t.dataset.workoutDate!==undefined){openSavedWorkoutDateEditor(t.dataset.workoutDate);return}if(t.dataset.draftDay!==undefined){const i=Number(t.dataset.draftDay);if(!draftPlan||!draftPlan.days[i])return;draftExpanded=i;render();document.getElementById('draft-review')?.scrollIntoView({block:'nearest'});return}if(t.dataset.draftRemove!==undefined){const i=Number(t.dataset.draftRemove),w=draftPlan?.days?.[draftExpanded];if(!w||w[1].length<=1){toast('Keep at least one exercise per workout');return}w[1].splice(i,1);render();return}if(t.dataset.weekdayToggle!==undefined){const val=Number(t.dataset.weekdayToggle),i=data.weekdays.indexOf(val);if(i>=0){if(data.weekdays.length===1){toast('Keep at least one training day');return}data.weekdays.splice(i,1)}else{if(data.weekdays.length>=7)return;data.weekdays.push(val)}data.weekdays.sort((a,b)=>(a+6)%7-(b+6)%7);save();selectedSlot=null;selectedDate=null;render();return}if(t.dataset.workoutChoice!==undefined){const choice=Number(t.dataset.workoutChoice),options=cycleFor(month).days;if(!selectedDate||!Number.isInteger(choice)||choice<0||choice>=options.length)return;day=choice;if(selectedSlot){const planned=monthSchedule().find(a=>a.slot===selectedSlot);if(planned&&!sessionForScheduledDay(planned)){data.schedule[selectedSlot]={...(data.schedule[selectedSlot]||{}),day:choice};save()}}render();document.getElementById('selected-workout-picker')?.scrollIntoView({block:'nearest'});return}if(t.dataset.gymPick!==undefined){gymPickAddress(Number(t.dataset.gymPick));return}if(t.dataset.historyJump){const target=document.getElementById('history-group-'+t.dataset.historyJump);if(target)target.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});return}if(t.dataset.historyDate){historyDateEditId=historyDateEditId===t.dataset.historyDate?null:t.dataset.historyDate;render();return}if(t.dataset.restoreSkipped){const slot=t.dataset.restoreSkipped;if(data.schedule[slot]?.status==='skipped'){data.schedule[slot]={...data.schedule[slot],status:'planned'};save();render();toast('Skipped workout restored to Plan')}return}if(t.dataset.editSession){openWorkout(t.dataset.editSession,true);return}if(t.dataset.foodExample){findFoods(t.dataset.foodExample);return}if(t.dataset.foodPick!==undefined){chooseFood(Number(t.dataset.foodPick));return}if(t.dataset.calorieDelete){const n=calorieInfo();n.entries[calorieDay]=(n.entries[calorieDay]||[]).filter(x=>x.id!==t.dataset.calorieDelete);save();render();return}if(t.dataset.movementKey){movementSelected=t.dataset.movementKey;render();return}if(t.dataset.movement){changeMovement(Number(t.dataset.index),t.dataset.movement);return}if(t.dataset.tab){swapPicker=null;workoutDateEditId=null;gymCloseSuggestions();stopBarcodeCamera();editing=null;editingPast=false;selectedDate=null;selectedSlot=null;tab=t.dataset.tab;render();showSelectedNavTab();scrollTo(0,0);return}if(t.dataset.day!==undefined){day=Number(t.dataset.day);selectedSlot=null;selectedDate=null;render();return}if(t.dataset.calendarDate){const choice=t.dataset.calendarDate,match=monthSchedule().find(a=>a.date===choice);selectedDate=choice;selectedSlot=match?.slot||null;day=match?.day??0;render();document.getElementById('selected-workout-picker')?.scrollIntoView({behavior:'smooth',block:'nearest'});return}if(t.dataset.slot){const planned=monthSchedule().find(a=>a.slot===t.dataset.slot);selectedSlot=t.dataset.slot;selectedDate=planned?.date||null;day=planned?.day??Number(t.dataset.planDay);render();document.getElementById('selected-workout-picker')?.scrollIntoView({behavior:'smooth',block:'nearest'});return}if(t.dataset.skip){const key=t.dataset.skip,old=data.schedule[key]||{},a=monthSchedule().find(x=>x.slot===key);data.schedule[key]={...old,status:old.status==='skipped'?'planned':'skipped',...(a?{date:a.date,day:a.day}:{})};save();render();return}if(t.dataset.open){openWorkout(t.dataset.open);return}switch(t.dataset.action){case'move':{if(!selectedSlot)return;const v=document.getElementById('move-date')?.value;if(!v||!v.startsWith(month+'-')){alert('Choose a date in this month.');return}const old=data.schedule[selectedSlot]||{};data.schedule[selectedSlot]={...old,date:v,status:'planned'};save();selectedSlot=null;selectedDate=null;render();toast('Workout moved');break}case'advance':if(data.hasProgram)startNextProgram();break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'barcode-camera':startBarcodeCamera();break;case'barcode-stop':stopBarcodeCamera();updateBarcodeMessage('Camera stopped.');break;case'add-scanned':addScannedFood();break;case'show-builder':builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={goal:'muscle',days:data.weekdays.length,equipment:'all'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':if(confirm('Delete ALL workouts saved on this browser? This cannot be undone.')){data.sessions={};data.schedule={};data.program={index:0,number:1,started:new Date().toISOString(),history:[]};save();editing=null;render();toast('Local workout history cleared')}break}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&swapPicker){e.preventDefault();closeExercisePicker();return}if(e.target.id==='gym-city'){gymSuggestionKeys(e);return}if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
 document.addEventListener('submit',e=>{if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;if(t.id==='exercise-picker-category'&&swapPicker){swapPicker.category=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(t.dataset.draftSwap!==undefined){editDraftSwap(Number(t.dataset.draftSwap),t.value);return}if(t.id==='barcode-photo'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(t.id==='exercise-picker-search'&&swapPicker){swapPicker.query=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(draftPlan&&(t.dataset.draftField!==undefined||t.dataset.draftWorkoutName!==undefined||t.dataset.draftExname!==undefined||t.dataset.draftSets!==undefined||t.dataset.draftReps!==undefined)){draftInputChanged(t);return}if(t.id==='gym-city'){gymTyping(t.value);return}if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p){p.style.width=(total?100*completed/total:0)+'%';if(t.checked&&total&&completed===total){p.parentElement?.classList.remove('lj-progress-complete');void p.parentElement?.offsetWidth;p.parentElement?.classList.add('lj-progress-complete')}}if(t.checked){t.classList.remove('lj-set-checked');void t.offsetWidth;t.classList.add('lj-set-checked')}else t.classList.remove('lj-set-checked')}}});
-document.addEventListener('change',async e=>{if(e.target.id!=='import')return;let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text()),obj=incoming.data||incoming;if(!obj.sessions||typeof obj.sessions!=='object'||Array.isArray(obj.sessions)||!['kg','lb'].includes(obj.unit))throw Error('Invalid file');if(!confirm('Replace all currently saved workouts with this backup?'))return;data={sessions:obj.sessions,unit:obj.unit,hasProgram:typeof obj.hasProgram==='boolean'?obj.hasProgram:true,weekdays:Array.isArray(obj.weekdays)&&obj.weekdays.length>=1&&obj.weekdays.length<=7&&new Set(obj.weekdays).size===obj.weekdays.length&&obj.weekdays.every(d=>Number.isInteger(d)&&d>=0&&d<=6)?obj.weekdays:[1,3,5],schedule:obj.schedule||{},program:obj.program&&Number.isInteger(obj.program.index)?obj.program:{index:0,number:1,started:new Date().toISOString(),history:[]},customPlan:obj.customPlan||null,nutrition:obj.nutrition||{goal:2000,entries:{}}};if(!Array.isArray(data.program.history))data.program.history=[];save();editing=null;tab='history';render();toast('Backup restored')}catch(err){alert('Cannot import backup: '+err.message)}e.target.value=''});
+document.addEventListener('change',async e=>{if(e.target.id!=='import')return;let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text()),obj=incoming.data||incoming;if(!obj.sessions||typeof obj.sessions!=='object'||Array.isArray(obj.sessions)||!['kg','lb'].includes(obj.unit))throw Error('Invalid file');if(!confirm('Replace all currently saved workouts with this backup?'))return;data={sessions:obj.sessions,unit:obj.unit,hasProgram:typeof obj.hasProgram==='boolean'?obj.hasProgram:true,weekdays:Array.isArray(obj.weekdays)&&obj.weekdays.length>=1&&obj.weekdays.length<=7&&new Set(obj.weekdays).size===obj.weekdays.length&&obj.weekdays.every(d=>Number.isInteger(d)&&d>=0&&d<=6)?obj.weekdays:[1,3,5],schedule:obj.schedule||{},program:obj.program&&Number.isInteger(obj.program.index)?obj.program:{index:0,number:1,started:new Date().toISOString(),history:[]},customPlan:obj.customPlan||null,trainerProfile:obj.trainerProfile||obj.customPlan?.trainerProfile||null,nutrition:obj.nutrition||{goal:2000,entries:{}}};if(!Array.isArray(data.program.history))data.program.history=[];save();editing=null;tab='history';render();toast('Backup restored')}catch(err){alert('Cannot import backup: '+err.message)}e.target.value=''});
 render();
 initTabNavigation();
 })();
