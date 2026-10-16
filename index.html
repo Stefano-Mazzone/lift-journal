@@ -1084,7 +1084,7 @@ function scheduleView(){
   (rows||'<p class="muted">No planned workouts in this month.</p>')+'</details></section>';
 }
 function home(){
- if(!data.hasProgram)return header('<div class="setup-welcome"><span class="workout-picker-step">WELCOME TO LIFT JOURNAL</span><h1>Build Your First Program</h1><p class="sub">Answer three quick questions, preview the workouts, then activate your program. Your calendar and weekly schedule will appear afterward.</p></div>')+planBuilder();
+ if(!data.hasProgram)return header('<div class="setup-welcome"><span class="workout-picker-step">WELCOME TO LIFT JOURNAL</span><h1>'+((data.program?.history?.length||Object.keys(data.sessions||{}).length)?'Build Your Next Program':'Build Your First Program')+'</h1><p class="sub">Answer three quick questions, preview the workouts, then activate your program. Your calendar and weekly schedule will appear afterward.</p></div>')+planBuilder();
  const c=cycleFor(month),count=Object.values(data.sessions).filter(s=>s.programNumber===data.program.number&&s.finished).length;
  return header('<h1>Training Plan</h1><p class="sub">Your routine, schedule, and progress in one place.</p>')+
   monthControl()+
@@ -1972,7 +1972,7 @@ function setupNext(){
 }
 function planBuilder(){
  return '<section class="card program-builder'+(!data.hasProgram?' first-program-builder':'')+'" id="program-builder"><div class="row"><div><h2>'+
- (data.hasProgram?'Build a Program':'Create Your First Program')+'</h2>'+
+ (data.hasProgram?'Build a Program':((data.program?.history?.length||Object.keys(data.sessions||{}).length)?'Build Your Next Program':'Create Your First Program'))+'</h2>'+
  '<p class="note">Review and customize every exercise before activating your program.</p></div>'+
  (data.hasProgram?'<button type="button" class="builder-close" data-action="hide-builder" aria-label="Close program builder">×</button>':'')+
  '</div>'+(draftPlan?draftReview():setupPreferencesInput()+
@@ -3222,7 +3222,7 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.26.1',APP_UPDATED_AT='2026-10-16T23:30:28.539Z';
+const APP_VERSION='1.26.2',APP_UPDATED_AT='2026-10-16T23:34:04.737Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
@@ -3274,22 +3274,25 @@ async function checkVersion(){
  if(tab==='settings')render();
 }
 function clearWorkoutsAndRestartProgram(){
- if(initialLoadError){
-  alert('Your saved data could not be loaded, so nothing was deleted. Restore a valid backup first.');
-  return false;
- }
- const count=Object.keys(data.sessions||{}).length;
- const prompt='Delete '+count+' recorded workout'+(count===1?'':'s')+
-  ', the active program, previous program history, and all scheduled workouts?\n\n'+
-  'You will return to the first program setup screen. Your nutrition and food logs, favorite movements, and preferred weight unit will be kept.\n\n'+
-  'This cannot be undone unless you exported a backup. Continue?';
- if(!confirm(prompt))return false;
- const previous=data,now=new Date();
- data={...previous,sessions:{},schedule:{},customPlan:null,trainerProfile:null,hasProgram:false,
-  weekdays:[1,3,5],program:{index:0,number:1,started:now.toISOString(),history:[]}};
+ if(initialLoadError){alert('Saved data could not be loaded. Restore a valid backup before resetting. Nothing was deleted.');return false}
+ const current=Number(data.program?.number)||1;
+ const entries=Object.entries(data.sessions||{});
+ const currentSessions=entries.filter(([id,x])=>Number(x?.programNumber)===current);
+ const priorSessions=entries.filter(([id,x])=>Number(x?.programNumber)!==current);
+ const archives=Array.isArray(data.program?.history)?data.program.history:[];
+ if(!confirm('Restart your CURRENT program?\n\nDelete '+currentSessions.length+
+  ' current-program workout'+(currentSessions.length===1?'':'s')+' and clear its schedule.\n\n'+
+  'KEEP '+priorSessions.length+' past or legacy workout'+(priorSessions.length===1?'':'s')+
+  ' and '+archives.length+' archived program'+(archives.length===1?'':'s')+
+  '.\n\nNutrition, favorite movements, and weight preferences also stay. '+
+  'Export a backup first if you may need current-program workouts again.'))return false;
+ const old=data,now=new Date(),hasPast=priorSessions.length>0||archives.length>0;
+ data={...old,sessions:Object.fromEntries(priorSessions),schedule:{},customPlan:null,trainerProfile:null,
+  hasProgram:false,weekdays:[1,3,5],
+  program:{index:0,number:hasPast?current+1:1,started:now.toISOString(),history:archives.slice()}};
  if(!save()){
-  data=previous;updateStorageWarning();
-  alert('The reset could not be saved. Your previous workouts and program were not deleted.');
+  data=old;updateStorageWarning();
+  alert('Reset could not be saved. Your previous data remains intact.');
   return false;
  }
  month=isoDate(now).slice(0,7);
@@ -3300,12 +3303,11 @@ function clearWorkoutsAndRestartProgram(){
  coachPendingPlan=null;coachSessionSuggestion=null;coachAiPlan=null;coachPreviousAiPlan=null;
  coachRequest=null;coachRun++;coachBusy=false;coachLastInput='';
  coachMessages=coachMessages.slice(0,1);
- resetDailyChoice();
- tab='home';render();scrollTo(0,0);
- toast('Workout history cleared · ready for a new program');
+ resetDailyChoice();tab='home';render();scrollTo(0,0);
+ toast('Current program restarted · previous history kept');
  return true;
 }
-function settings(){return header(`<h1>Settings & backup</h1><p class="sub">Choose your preferred unit and keep a copy of your history.</p>`)+versionPanel()+`<section class="card"><h2>Weight units</h2><label class="input-label" for="unit">How do you track lifting weight?</label><select id="unit"><option value="lb" ${data.unit==='lb'?'selected':''}>Pounds (lb)</option><option value="kg" ${data.unit==='kg'?'selected':''}>Kilograms (kg)</option></select><p class="note">Changing the label does not convert numbers you previously entered.</p></section><section class="card"><h2>Your data</h2><p class="muted">Workouts save automatically in this browser using local storage, not in a cloud account. Keep periodic backup files, especially before clearing browser data or changing phones.</p><p class="note">This device currently has <strong>${Object.keys(data.sessions||{}).length} saved workouts</strong> and <strong>${(data.favoriteMovements||[]).length} favorite movements</strong>. You can export them with your program and food entries. The app cannot verify whether a backup is saved in iCloud or elsewhere.</p>${initialLoadError?'<p class="storage-settings-alert">Stored data could not be loaded. Its original bytes have been left untouched. Do not create new entries until you restore a valid backup.</p>':''}<div class="stack">${button('Export backup (.json)','export','secondary')}<label class="btn secondary" style="text-align:center;cursor:pointer">Import backup (.json)<input id="import" class="hide" type="file" accept=".json,application/json"></label></div></section><details class="card settings-guide"><summary>Using Lift Journal on iPhone or Android</summary><p class="muted">On iPhone, open the link in Safari and choose Share → Add to Home Screen. On Android, open it in Chrome and choose the browser menu → Add to Home screen (or Install app when available). Both use the same web app and receive its updates.</p><p class="note">Workout and calorie records are saved locally in each browser/device. They do not sync automatically between an iPhone and Android phone. Use Export Backup and Import Backup when transferring data. Camera barcode scanning and location search require browser permissions, internet and a compatible device.</p></details><details class="card settings-guide"><summary>Previous Weights & Progression</summary><p class="muted">Lift Journal compares the same exercise name across your completed workout history, including earlier programs. Only checked sets with reps and weights count. If all prescribed sets reached the top of the current rep range at the same weight, it may suggest a small increase. Otherwise it recommends holding or building reps first.</p><p class="note">Recommendations are guidelines, not automatic weight changes. Prioritize technique and comfort. New sessions save their weight unit; older entries may not identify whether you originally logged pounds or kilograms.</p></details><details class="card settings-guide"><summary>Training Guidance</summary><p class="muted">Start each workout with 5–10 minutes of easy movement and warm-up sets. Pick weights that let you finish with ~1–3 good reps left in reserve. When you reach the top of the target range for all sets, increase weight a little next time. Rest 1–2 minutes for accessory lifts and about 2–3 minutes for heavier compound lifts.</p><p class="muted">For single-leg or single-arm exercises, complete the prescribed reps on each side. Your program only changes when you choose Start next program. Four templates rotate in order, and workouts remain in your history. No equipment beyond your listed gym setup is required.</p></details><section class="card"><h2>Restart Training</h2><p class="note">Clear workout history, schedules, and the current and previous programs, then return to first-time setup. Food logs, recently scanned foods, favorite movements, and your weight unit are kept.</p><p class="note">Export a backup first if you might need your workout history later.</p>${button('Clear workouts & restart program','clear','danger')}</section>`}
+function settings(){return header(`<h1>Settings & backup</h1><p class="sub">Choose your preferred unit and keep a copy of your history.</p>`)+versionPanel()+`<section class="card"><h2>Weight units</h2><label class="input-label" for="unit">How do you track lifting weight?</label><select id="unit"><option value="lb" ${data.unit==='lb'?'selected':''}>Pounds (lb)</option><option value="kg" ${data.unit==='kg'?'selected':''}>Kilograms (kg)</option></select><p class="note">Changing the label does not convert numbers you previously entered.</p></section><section class="card"><h2>Your data</h2><p class="muted">Workouts save automatically in this browser using local storage, not in a cloud account. Keep periodic backup files, especially before clearing browser data or changing phones.</p><p class="note">This device currently has <strong>${Object.keys(data.sessions||{}).length} saved workouts</strong> and <strong>${(data.favoriteMovements||[]).length} favorite movements</strong>. You can export them with your program and food entries. The app cannot verify whether a backup is saved in iCloud or elsewhere.</p>${initialLoadError?'<p class="storage-settings-alert">Stored data could not be loaded. Its original bytes have been left untouched. Do not create new entries until you restore a valid backup.</p>':''}<div class="stack">${button('Export backup (.json)','export','secondary')}<label class="btn secondary" style="text-align:center;cursor:pointer">Import backup (.json)<input id="import" class="hide" type="file" accept=".json,application/json"></label></div></section><details class="card settings-guide"><summary>Using Lift Journal on iPhone or Android</summary><p class="muted">On iPhone, open the link in Safari and choose Share → Add to Home Screen. On Android, open it in Chrome and choose the browser menu → Add to Home screen (or Install app when available). Both use the same web app and receive its updates.</p><p class="note">Workout and calorie records are saved locally in each browser/device. They do not sync automatically between an iPhone and Android phone. Use Export Backup and Import Backup when transferring data. Camera barcode scanning and location search require browser permissions, internet and a compatible device.</p></details><details class="card settings-guide"><summary>Previous Weights & Progression</summary><p class="muted">Lift Journal compares the same exercise name across your completed workout history, including earlier programs. Only checked sets with reps and weights count. If all prescribed sets reached the top of the current rep range at the same weight, it may suggest a small increase. Otherwise it recommends holding or building reps first.</p><p class="note">Recommendations are guidelines, not automatic weight changes. Prioritize technique and comfort. New sessions save their weight unit; older entries may not identify whether you originally logged pounds or kilograms.</p></details><details class="card settings-guide"><summary>Training Guidance</summary><p class="muted">Start each workout with 5–10 minutes of easy movement and warm-up sets. Pick weights that let you finish with ~1–3 good reps left in reserve. When you reach the top of the target range for all sets, increase weight a little next time. Rest 1–2 minutes for accessory lifts and about 2–3 minutes for heavier compound lifts.</p><p class="muted">For single-leg or single-arm exercises, complete the prescribed reps on each side. Your program only changes when you choose Start next program. Four templates rotate in order, and workouts remain in your history. No equipment beyond your listed gym setup is required.</p></details><section class="card"><h2>Restart Current Program</h2><p class="note">Clears only the current program’s workouts and schedule. Previously completed programs and their workout history, nutrition, favorites and weight settings are kept. Export a backup if you want to retain the current program’s workouts too.</p>${button('Restart current program · keep past history','clear','danger')}</section>`}
 let ljLastRenderedTab=null;
 function render(){removeCoachVerification();if(day>=cycleFor(month).days.length)day=0;if(editing&&data.sessions[editing])tab='train';const changed=ljLastRenderedTab!==tab;el.innerHTML=({home,train,coach:coachPage,history,movements,calories,gyms:gymLocator,settings}[tab])();el.classList.toggle('lj-page-enter',changed);ljLastRenderedTab=tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b.dataset.tab===tab));updateTabArrows();if(tab==='coach')mountCoachVerification()}
 
