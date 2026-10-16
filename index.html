@@ -2901,6 +2901,15 @@ function validateBackupFile(parsed){
  if(obj.schedule!==undefined&&!backupRecord(obj.schedule))throw Error('Invalid schedule in backup.');
  if(obj.nutrition!==undefined&&(!backupRecord(obj.nutrition)||!backupRecord(obj.nutrition.entries)))
   throw Error('Invalid nutrition log in backup.');
+ if(obj.nutrition?.scannedHistory!==undefined){
+  const items=obj.nutrition.scannedHistory;
+  if(!Array.isArray(items)||items.length>SCAN_HISTORY_MAX||items.some(f=>
+   !backupRecord(f)||!/^\d{8,14}$/.test(String(f.code||''))||
+   typeof f.name!=='string'||!f.name.trim()||f.name.length>150||
+   !Number.isFinite(Number(f.portion))||Number(f.portion)<=0||Number(f.portion)>10000||
+   ['kcal','protein','carbs','fat','sugars','fiber'].some(k=>f[k]!=null&&(!Number.isFinite(Number(f[k]))||Number(f[k])<0))))
+   throw Error('Invalid scanned food history in backup.');
+ }
  return obj;
 }
 function validBackupPlan(plan){
