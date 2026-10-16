@@ -58,6 +58,17 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .history-date-editor input{display:block;width:100%;max-width:100%;font:inherit;border:1px solid var(--line);border-radius:9px;color:var(--text);background:#111924;padding:10px 7px;margin-bottom:8px}
 .history-date-help{margin:14px 3px}
 @media(max-width:650px){.history-status-columns{grid-template-columns:minmax(0,1fr);gap:12px}.history-status-column{padding:18px!important}.history-status-column h2{font-size:18px}.history-status-item strong{font-size:16px}.history-actions .btn{padding:9px 12px}}
+
+.gym-listings h2{margin:0;font-size:20px}
+.gym-result{border-top:1px solid var(--line);padding:13px 0;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
+.gym-result-info{flex:1 1 190px;min-width:0}.gym-result-info strong{font-size:16px}
+.gym-result .gym-map-links{gap:6px;margin:0}.gym-preferred-links{justify-content:flex-start;gap:8px;margin-top:9px}
+.gym-preferred-links .btn{min-width:0;text-align:center}
+.gym-primary-link{background:var(--accent);border-color:var(--accent);color:#102319!important;font-weight:800}
+.gym-location-details{margin:16px 0 26px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:15px}
+.gym-location-details summary{cursor:pointer;color:var(--muted);font-size:14px}
+.gym-location-details .gym-map-frame{margin-top:12px}
+@media(max-width:480px){.gym-result{display:block}.gym-result .gym-map-links{margin-top:9px}.gym-preferred-links .btn{width:100%}}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1113,158 +1124,218 @@ function addCalories(){
  n.entries[calorieDay].push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,kcal});save();render();toast('Food added');
 }
 
-let gymResults=[],gymMessage='Find nearby gyms using your location or search a city.',gymPlace='',gymRadius=5000,gymCoordinates=null,gymBusy=false,gymMapVisible=false,gymListStatus='idle',gymAccuracy=null;
 
-
-function gymMapSearchText(){
- return gymCoordinates?'gyms around '+Number(gymCoordinates.lat).toFixed(5)+','+Number(gymCoordinates.lon).toFixed(5):
- gymPlace?'gyms in '+gymPlace:'gyms near me';
-}
-function gymMapResults(){
- if(!gymMapVisible)return '';
- const radius=Number(gymRadius)||5000;
- let map='';
- if(gymCoordinates){
-  const lat=Number(gymCoordinates.lat),lon=Number(gymCoordinates.lon);
-  const span=radius/111000,lonSpan=span/Math.max(.2,Math.cos(lat*Math.PI/180));
-  const bbox=[lon-lonSpan,lat-span,lon+lonSpan,lat+span].map(n=>n.toFixed(6)).join(',');
-  const url='https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent(bbox)+'&layer=mapnik&marker='+encodeURIComponent(lat.toFixed(6)+','+lon.toFixed(6));
-  map='<div class="gym-map-frame"><iframe title="Map centered on phone reported location" src="'+url+'" loading="eager" referrerpolicy="no-referrer"></iframe></div>'+
-   '<p class="note">This marker is the location reported by your device, not a verified street address. The map does not display all gym businesses; use the search buttons below to find them.</p>';
+let gymResults=[],gymMessage='Use your location to search for nearby gym names, or choose a city.',gymPlace='',gymRadius=5000,gymCoordinates=null,gymBusy=false,gymMapVisible=false,gymListStatus='idle',gymAccuracy=null,gymSearchSequence=0;
+let gymCachedLookup=null;
+function gymIsAndroid(){return /android/i.test(navigator.userAgent||'')}
+function gymMapLinks(latlon){
+ let google,apple;
+ if(latlon&&Number.isFinite(latlon.lat)&&Number.isFinite(latlon.lon)){
+  const lat=Number(latlon.lat),lon=Number(latlon.lon);
+  const zoom=gymRadius<=2000?15:gymRadius<=5000?14:gymRadius<=10000?13:12;
+  google='https://www.google.com/maps/search/gyms/@'+lat.toFixed(6)+','+lon.toFixed(6)+','+zoom+'z';
+  apple='https://maps.apple.com/?q=gyms&ll='+encodeURIComponent(lat.toFixed(6)+','+lon.toFixed(6));
+ }else if(gymPlace){
+  google='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('gyms in '+gymPlace);
+  apple='https://maps.apple.com/?q='+encodeURIComponent('gyms in '+gymPlace);
  }else{
-  map='<p class="note">To search gyms in this city, open either map service using the links below.</p>';
+  google='https://www.google.com/maps/search/?api=1&query=gyms+near+me';
+  apple='https://maps.apple.com/?q=gyms';
  }
- return '<section class="card gym-map-card"><h2>'+(gymCoordinates?'Your detected position':'Gym searches for '+esc(gymPlace))+'</h2>'+
- (gymCoordinates?'<p class="note">Estimated GPS accuracy: '+(gymAccuracy===null?'unknown':Math.round(gymAccuracy).toLocaleString()+' m')+'. A large accuracy value means the phone location may be far from where you are.</p>':'')+
- map+gymNearbyMapsLinks()+'</section>';
+ return {google,apple};
+}
+function gymMapButtons(coords){
+ const urls=gymMapLinks(coords);
+ const items=gymIsAndroid()?[['Google Maps',urls.google,'preferred'],['Apple Maps',urls.apple,'']]:
+  [['Apple Maps',urls.apple,'preferred'],['Google Maps',urls.google,'']];
+ return '<div class="gym-map-links gym-preferred-links">'+items.map(([name,url,pref])=>
+  '<a class="btn '+(pref?'gym-primary-link':'secondary')+'" href="'+url+'" target="_blank" rel="noopener noreferrer" style="text-decoration:none">'+
+  'Find gyms in '+name+' ↗</a>').join('')+'</div>';
+}
+function gymLocationMap(){
+ if(!gymCoordinates)return '';
+ const lat=gymCoordinates.lat,lon=gymCoordinates.lon,span=(Number(gymRadius)||5000)/111000;
+ const lonSpan=span/Math.max(.2,Math.cos(lat*Math.PI/180));
+ const bbox=[lon-lonSpan,lat-span,lon+lonSpan,lat+span].map(n=>n.toFixed(6)).join(',');
+ const url='https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent(bbox)+
+  '&layer=mapnik&marker='+encodeURIComponent(lat.toFixed(6)+','+lon.toFixed(6));
+ return '<details class="gym-location-details"><summary>Show my detected location on the map</summary>'+
+  '<p class="note">This marker shows the location supplied by your device; it is not a gym pin. Estimated GPS accuracy: '+
+  (gymAccuracy===null?'unknown':Math.round(gymAccuracy)+' metres')+'.</p>'+
+  '<div class="gym-map-frame"><iframe title="Map showing your device location" src="'+url+'" loading="lazy" referrerpolicy="no-referrer"></iframe></div>'+
+  '</details>';
+}
+function gymListItem(g){
+ const {google,apple}=gymMapLinks({lat:g.lat,lon:g.lon});
+ const title=g.name||'Unnamed fitness centre';
+ const street=String(g.address||'Address not listed');
+ const links=gymIsAndroid()?[['Google Maps',google],['Apple Maps',apple]]:[['Apple Maps',apple],['Google Maps',google]];
+ return '<article class="gym-result"><div class="gym-result-info"><strong>'+esc(title)+'</strong>'+
+  '<div class="note">'+esc(g.distance.toFixed(1))+' km away · '+esc(street)+'</div></div>'+
+  '<div class="gym-map-links">'+links.map(([name,url])=>'<a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="'+url+'">'+name+' ↗</a>').join('')+'</div></article>';
 }
 function gymLocator(){
- const list=gymResults.map(g=>'<div class="calorie-entry"><div><strong>'+esc(g.name)+'</strong><div class="note">'+(g.distance==null?'':g.distance.toFixed(1)+' km away · ')+esc(g.address||'Address not provided')+'</div></div><div class="gym-map-links"><a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://maps.apple.com/?daddr='+encodeURIComponent(g.lat+','+g.lon)+'">Apple Maps</a><a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(g.lat+','+g.lon)+'">Google Maps</a></div></div>').join('');
- return header('<h1>Gym Locator</h1><p class="sub">Find fitness centres using your location or a city search.</p>')+
- '<section class="card"><h2>Find nearby gyms</h2><p class="note">Location access is optional. Lift Journal can show a map of gyms without relying on the separate OpenStreetMap listing servers.</p>'+
- '<button class="btn" data-action="gym-near" '+(gymBusy?'disabled':'')+'>📍 Use my location</button>'+
- '<div class="gym-map-links" style="justify-content:flex-start;margin-top:12px"><a class="btn secondary" href="https://maps.apple.com/?q=gyms" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Find gyms in Apple Maps</a><a class="btn secondary" href="https://www.google.com/maps/search/?api=1&query=gyms+near+me" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Find gyms in Google Maps</a></div>'+
- '<form id="gym-city-form"><label class="input-label" for="gym-city">Or enter a city</label><div class="barcode-row"><input class="calorie-date" id="gym-city" maxlength="90" placeholder="e.g., Montreal, QC" value="'+esc(gymPlace)+'" required><button type="submit" class="btn secondary" '+(gymBusy?'disabled':'')+'>Search</button></div></form>'+
- '<label class="input-label" for="gym-radius">Map radius</label><select id="gym-radius"><option value="2000" '+(gymRadius===2000?'selected':'')+'>2 km</option><option value="5000" '+(gymRadius===5000?'selected':'')+'>5 km</option><option value="10000" '+(gymRadius===10000?'selected':'')+'>10 km</option><option value="20000" '+(gymRadius===20000?'selected':'')+'>20 km</option></select>'+
- '<p class="note" id="gym-status" role="status" aria-live="polite">'+esc(gymMessage)+'</p></section>'+
- gymMapResults()+
- (gymMapVisible?'<section class="card"><h2>Optional detailed gym listings</h2><p class="note">OpenStreetMap directories sometimes reject requests from iPhone web apps. The map above does not depend on those directories.</p>'+
- '<button class="btn secondary" data-action="gym-list" '+(gymBusy?'disabled':'')+'>'+(gymBusy?'Loading gym directory…':'Try loading detailed gym list')+'</button>'+
- (gymListStatus==='error'?'<p class="note">Directory unavailable on this network. You can keep using the map above.</p>':'')+
- (gymListStatus==='loaded'?'<p class="note">'+gymResults.length+' listings loaded.</p>':'')+
- list+'</section>':'');
+ const hasSearch=gymListStatus!=='idle';
+ const details=hasSearch?'<section class="card gym-listings"><div class="row"><h2>Nearby gyms'+(gymListStatus==='loaded'?' ('+gymResults.length+')':'')+'</h2>'+
+  (gymCoordinates?'<button class="btn tiny secondary" data-action="gym-list" '+(gymBusy?'disabled':'')+'>Try again</button>':'')+'</div>'+
+  (gymListStatus==='loading'?'<p class="note" role="status">Searching the nearby-gym directory…</p>':'')+
+  (gymListStatus==='loaded'?(gymResults.length?gymResults.map(gymListItem).join(''):
+   '<p class="note">No gyms found in this radius in the available directory. Try a larger radius or the Maps buttons below.</p>'):'')+
+  (gymListStatus==='error'?'<p class="note">Could not retrieve the public gym listings. The map search buttons below can still show nearby gyms in their own apps.</p>':'')+
+  '</section>':'';
+ return header('<h1>Gym Locator</h1><p class="sub">Look up real gyms near you, not just a pin showing your location.</p>')+
+ '<section class="card"><h2>Find nearby gyms</h2>'+
+ '<p class="note">Location access is optional. Named gym results come from community map data and may be incomplete.</p>'+
+ '<button class="btn" data-action="gym-near" '+(gymBusy?'disabled':'')+'>📍 Use my location to find gyms</button>'+
+ '<form id="gym-city-form"><label class="input-label" for="gym-city">Or enter a city</label>'+
+ '<div class="barcode-row"><input class="calorie-date" id="gym-city" maxlength="90" placeholder="e.g., Montreal, QC" value="'+esc(gymPlace)+'" required>'+
+ '<button type="submit" class="btn secondary" '+(gymBusy?'disabled':'')+'>Search</button></div></form>'+
+ '<label class="input-label" for="gym-radius">Search radius</label><select id="gym-radius">'+
+ [2000,5000,10000,20000].map(r=>'<option value="'+r+'" '+(gymRadius===r?'selected':'')+'>'+(r/1000)+' km</option>').join('')+
+ '</select><p class="note" id="gym-status" role="status" aria-live="polite">'+esc(gymMessage)+'</p></section>'+
+ details+
+ '<section class="card gym-external-search"><h2>Find gyms in Maps</h2><p class="note">These searches use '+
+ (gymCoordinates?'the position detected on your phone':gymPlace?'the city you entered':'your Maps app location')+
+ ', with '+(gymIsAndroid()?'Google Maps':'Apple Maps')+' shown first for this device.</p>'+
+ gymMapButtons(gymCoordinates)+'</section>'+gymLocationMap();
 }
 function gymDistance(lat1,lon1,lat2,lon2){
  const d=Math.PI/180,a=Math.sin((lat2-lat1)*d/2)**2+Math.cos(lat1*d)*Math.cos(lat2*d)*Math.sin((lon2-lon1)*d/2)**2;
  return 12742*Math.asin(Math.sqrt(a));
 }
-
-
-function gymNearbyMapsLinks(){
- let google,apple;
- if(gymCoordinates){
-  const lat=Number(gymCoordinates.lat),lon=Number(gymCoordinates.lon);
-  const latlon=lat.toFixed(6)+','+lon.toFixed(6),zoom=Number(gymRadius)<=2000?15:Number(gymRadius)<=5000?14:Number(gymRadius)<=10000?13:12;
-  google='https://www.google.com/maps/search/gyms/@'+lat.toFixed(6)+','+lon.toFixed(6)+','+zoom+'z';
-  apple='https://maps.apple.com/?q=gyms&ll='+encodeURIComponent(latlon);
- }else if(gymPlace){
-  google='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('gyms in '+gymPlace);
-  apple='https://maps.apple.com/?q='+encodeURIComponent('gyms in '+gymPlace);
- }else return '';
- return '<div class="gym-nearby-links"><p class="note">Search gyms using this map location:</p><div class="gym-map-links" style="justify-content:flex-start">'+
- '<a class="btn secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="'+apple+'">Search in Apple Maps ↗</a>'+
- '<a class="btn secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="'+google+'">Search in Google Maps ↗</a></div></div>';
-}
-async function gymOverpassQuery(query){
- // The original overpass.kumi.systems address was retired.
- // GET works with browser CORS without requiring POST redirects/preflights.
- const servers=['https://overpass.private.coffee/api/interpreter','https://overpass-api.de/api/interpreter','https://overpass.osm.jp/api/interpreter'];
- let lastError='connection failed';
- for(let i=0;i<servers.length;i++){
-  if(i>0){
-   const status=document.getElementById('gym-status');
-   if(status)status.textContent='Trying backup gym listings server '+(i+1)+' of '+servers.length+'…';
-  }
-  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),i===0?14000:11000);
-  try{
-   const response=await fetch(servers[i]+'?data='+encodeURIComponent(query),{method:'GET',cache:'no-store',signal:controller.signal});
-   if(!response.ok)throw Error('HTTP '+response.status);
-   const payload=await response.json();
-   if(!payload||!Array.isArray(payload.elements))throw Error('No usable results received');
-   if(typeof payload.remark==='string'&&/timeout|quota|error|out of memory|limit/i.test(payload.remark))throw Error(payload.remark);
-   return payload;
-  }catch(err){lastError=err?.name==='AbortError'?'request timed out':String(err?.message||'connection failed')}
-  finally{clearTimeout(timeout)}
+function parsePhotonGyms(json,lat,lon,radius){
+ const result=[],seen=new Set();
+ for(const feature of json?.features||[]){
+  const c=feature?.geometry?.coordinates,props=feature?.properties||{};
+  if(!Array.isArray(c)||c.length<2)continue;
+  const a=Number(c[1]),b=Number(c[0]);
+  if(!Number.isFinite(a)||!Number.isFinite(b))continue;
+  const distance=gymDistance(lat,lon,a,b);
+  if(distance>radius/1000)continue;
+  const name=String(props.name||'').trim();
+  if(!name)continue;
+  const key=name.toLowerCase()+'|'+a.toFixed(4)+'|'+b.toFixed(4);
+  if(seen.has(key))continue;seen.add(key);
+  const address=[props.housenumber,props.street,props.city].filter(Boolean).join(', ');
+  result.push({name,lat:a,lon:b,address,distance});
  }
- throw Error(lastError);
+ return result.sort((a,b)=>a.distance-b.distance).slice(0,40);
 }
-
-function gymSearch(lat,lon){
- if(!Number.isFinite(lat)||!Number.isFinite(lon)){gymBusy=false;gymMessage='Could not determine a usable location. Try either Maps button.';render();return}
- gymCoordinates={lat,lon};
- gymMapVisible=true;
- gymListStatus='idle';
- gymResults=[];
- gymBusy=false;
- gymMessage='Location detected. Check the marker and GPS accuracy below. If it is wrong, turn on Precise Location for Safari Websites or use the map search buttons.';
- render();
- document.querySelector('.gym-map-card')?.scrollIntoView({behavior:'smooth',block:'start'});
-}
-async function gymLoadDirectory(){
- if(gymBusy||!gymCoordinates)return;
- const {lat,lon}=gymCoordinates,radius=Math.max(500,Math.min(20000,Number(gymRadius)||5000));
- gymBusy=true;gymListStatus='loading';render();
- const query='[out:json][timeout:25];(nwr["leisure"="fitness_centre"](around:'+radius+','+lat+','+lon+');nwr["sport"="fitness"](around:'+radius+','+lat+','+lon+'););out center 90;';
+async function gymFetchJSON(url,ms=9000){
+ const c=new AbortController(),timer=setTimeout(()=>c.abort(),ms);
  try{
-  const payload=await gymOverpassQuery(query),seen=new Set();
-  gymResults=payload.elements.map(x=>{
-   const tags=x.tags||{},a=Number(x.lat??x.center?.lat),b=Number(x.lon??x.center?.lon);
-   if(!Number.isFinite(a)||!Number.isFinite(b))return null;
-   const name=String(tags.name||tags.brand||'Unnamed fitness centre'),key=name.toLowerCase()+'|'+a.toFixed(4)+'|'+b.toFixed(4);
-   if(seen.has(key))return null;seen.add(key);
-   const street=[tags['addr:housenumber'],tags['addr:street']].filter(Boolean).join(' ');
-   return {name,lat:a,lon:b,address:[street,tags['addr:city']].filter(Boolean).join(', '),distance:gymDistance(lat,lon,a,b)};
-  }).filter(Boolean).sort((a,b)=>a.distance-b.distance).slice(0,40);
-  gymListStatus='loaded';
- }catch(e){
-  gymListStatus='error';
-  gymResults=[];
+  const r=await fetch(url,{method:'GET',cache:'no-store',signal:c.signal,headers:{Accept:'application/json'}});
+  if(!r.ok)throw Error('HTTP '+r.status);
+  return await r.json();
+ }finally{clearTimeout(timer)}
+}
+async function gymPhotonNearby(lat,lon,radius){
+ // Photon accepts OSM tag filters on nearby reverse queries. Keep usage light:
+ // one request per user search, with in-memory caching.
+ const url='https://photon.komoot.io/reverse?lat='+encodeURIComponent(lat)+'&lon='+encodeURIComponent(lon)+
+  '&radius='+encodeURIComponent(radius/1000)+'&limit=50&osm_tag=leisure%3Afitness_centre';
+ const json=await gymFetchJSON(url,10000);
+ if(!Array.isArray(json?.features))throw Error('Gym search returned invalid data');
+ return parsePhotonGyms(json,lat,lon,radius);
+}
+async function gymOverpassNearby(lat,lon,radius){
+ // Backup public service; may be blocked by some mobile browsers.
+ const query='[out:json][timeout:15];(nwr["leisure"="fitness_centre"](around:'+radius+','+lat+','+lon+');nwr["sport"="fitness"](around:'+radius+','+lat+','+lon+'););out center 60;';
+ const response=await gymFetchJSON('https://overpass.private.coffee/api/interpreter?data='+encodeURIComponent(query),8000);
+ if(!Array.isArray(response?.elements))throw Error('Gym list unavailable');
+ const seen=new Set(),result=[];
+ for(const element of response.elements){
+  const tags=element.tags||{},a=Number(element.lat??element.center?.lat),b=Number(element.lon??element.center?.lon);
+  if(!Number.isFinite(a)||!Number.isFinite(b))continue;
+  const distance=gymDistance(lat,lon,a,b),name=String(tags.name||tags.brand||'').trim();
+  if(!name||distance>radius/1000)continue;
+  const key=name.toLowerCase()+'|'+a.toFixed(4)+'|'+b.toFixed(4);if(seen.has(key))continue;seen.add(key);
+  result.push({name,lat:a,lon:b,address:[tags['addr:housenumber'],tags['addr:street'],tags['addr:city']].filter(Boolean).join(', '),distance});
  }
- gymBusy=false;render();
+ return result.sort((a,b)=>a.distance-b.distance).slice(0,40);
+}
+async function gymSearch(lat,lon){
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)){gymBusy=false;gymMessage='Could not determine your location. Try the Maps buttons.';render();return}
+ const request=++gymSearchSequence,coords={lat,lon},radius=Number(gymRadius)||5000;
+ gymCoordinates=coords;gymResults=[];gymListStatus='loading';gymBusy=true;
+ gymMessage='Location detected. Searching for actual gyms in your area…';render();
+ const cacheKey=lat.toFixed(3)+'|'+lon.toFixed(3)+'|'+radius;
+ const saved=gymCachedLookup;
+ if(saved&&saved.key===cacheKey&&Date.now()-saved.time<600000){
+  gymResults=saved.gyms;gymListStatus='loaded';gymBusy=false;
+  gymMessage='Found '+gymResults.length+' gyms within '+radius/1000+' km (recent results).';
+  render();return;
+ }
+ try{
+  let results;
+  try{results=await gymPhotonNearby(lat,lon,radius)}
+  catch(err){
+   if(request===gymSearchSequence){
+    gymMessage='Primary gym source unavailable; trying backup listings…';
+    const element=document.getElementById('gym-status');
+    if(element)element.textContent=gymMessage;
+   }
+   results=await gymOverpassNearby(lat,lon,radius);
+  }
+  if(request!==gymSearchSequence)return;
+  gymResults=results;gymListStatus='loaded';gymBusy=false;
+  gymCachedLookup={key:cacheKey,time:Date.now(),gyms:results};
+  gymMessage=results.length?
+   'Found '+results.length+' named gyms within '+radius/1000+' km. Choose a gym below for directions.':
+   'No nearby gyms were returned by the public listing. Try a larger radius or search in Maps.';
+ }catch(error){
+  if(request!==gymSearchSequence)return;
+  gymListStatus='error';gymBusy=false;
+  gymMessage='Your location was detected, but live gym listings could not be loaded. Use the Maps search below for real gym results.';
+ }
+ render();
+}
+function gymLoadDirectory(){
+ if(gymCoordinates)return gymSearch(gymCoordinates.lat,gymCoordinates.lon);
+ gymMessage='Use your location first, or search a city.';render();
 }
 function gymNear(){
- const show=message=>{gymMessage=message;const status=document.getElementById('gym-status');if(status)status.textContent=message};
- if(gymBusy){show('A gym search is already running.');return}
- show('Requesting your iPhone location…');
- if(!window.isSecureContext||!navigator.geolocation){show('Location is unavailable in this browser. Open the HTTPS site in Safari or use Apple Maps / Google Maps.');return}
- gymBusy=true;
+ if(gymBusy)return;
+ const show=msg=>{gymMessage=msg;const el=document.getElementById('gym-status');if(el)el.textContent=msg};
+ if(!window.isSecureContext||!navigator.geolocation){show('This browser cannot request your location. Open either Maps search below.');return}
+ gymBusy=true;show('Requesting your location…');
  try{
-  navigator.geolocation.getCurrentPosition(
-   p=>{
-    gymBusy=false;
-    if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)){show('Your device could not provide location coordinates. Try Maps instead.');return}
-    gymAccuracy=Number.isFinite(p.coords.accuracy)?p.coords.accuracy:null;gymSearch(p.coords.latitude,p.coords.longitude)
-   },
-   err=>{
-    gymBusy=false;
-    const reason=err.code===1?'Location permission was denied. Check iPhone Location Services and Safari Websites permissions.':err.code===2?'Your phone could not determine its location. Check GPS and Wi-Fi.':err.code===3?'Location timed out. Try again with better reception.':'Your location was not available.';
-    show(reason+' You can still open Apple Maps, Google Maps, or search by city.');
-   },
-   {enableHighAccuracy:true,timeout:20000,maximumAge:0}
-  );
- }catch(err){gymBusy=false;show('Location request failed: '+err.message+'. Try Maps instead.')}
+  navigator.geolocation.getCurrentPosition(p=>{
+   gymBusy=false;
+   if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)){show('Your phone did not provide usable coordinates.');return}
+   gymAccuracy=Number.isFinite(p.coords.accuracy)?p.coords.accuracy:null;
+   gymSearch(p.coords.latitude,p.coords.longitude);
+  },error=>{
+   gymBusy=false;
+   show(error.code===1?'Location permission denied. Enable location access in your phone settings or use Maps.':
+    error.code===3?'Location request timed out. Try again or use Maps.':
+    'Your location is unavailable. Try again or use Maps.');
+  },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+ }catch(error){gymBusy=false;show('Location request failed. Try Maps instead.')}
+}
+async function gymCity(q){
+ gymPlace=String(q||'').trim();
+ if(!gymPlace){gymMessage='Enter a city.';render();return}
+ const request=++gymSearchSequence;
+ gymCoordinates=null;gymAccuracy=null;gymResults=[];gymListStatus='loading';gymBusy=true;
+ gymMessage='Finding '+gymPlace+' and nearby gyms…';render();
+ try{
+  const url='https://photon.komoot.io/api?q='+encodeURIComponent(gymPlace)+'&limit=3&osm_tag=place%3Acity';
+  const json=await gymFetchJSON(url,10000);
+  const feature=json.features?.find(x=>Array.isArray(x?.geometry?.coordinates));
+  if(!feature)throw Error('city not found');
+  if(request!==gymSearchSequence)return;
+  const lon=Number(feature.geometry.coordinates[0]),lat=Number(feature.geometry.coordinates[1]);
+  gymAccuracy=null;
+  await gymSearch(lat,lon);
+ }catch(err){
+  if(request!==gymSearchSequence)return;
+  gymBusy=false;gymListStatus='error';
+  gymMessage='City gym listings are unavailable. You can still search gyms in '+gymPlace+' using the Maps buttons below.';render();
+ }
 }
 
-function gymCity(q){
- gymPlace=String(q||'').trim();
- if(!gymPlace){gymMessage='Enter a city name.';render();return}
- // This search needs no separate geocoding service.
- gymCoordinates=null;gymAccuracy=null;gymResults=[];gymMapVisible=true;gymListStatus='idle';gymBusy=false;
- gymMessage='Showing gym search for '+gymPlace+'. Open the map or either Maps app below.';
- render();
- document.querySelector('.gym-map-card')?.scrollIntoView({behavior:'smooth',block:'start'});
-}
-const APP_VERSION='1.19.0',APP_UPDATED_AT='2026-10-16T05:11:40.799Z';
+const APP_VERSION='1.19.1',APP_UPDATED_AT='2026-10-16T05:19:04.300Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
