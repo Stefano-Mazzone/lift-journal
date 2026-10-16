@@ -2340,16 +2340,96 @@ function calories(){
  '<label class="input-label" for="calorie-date">Tracking date</label><input id="calorie-date" class="calorie-date" type="date" value="'+esc(calorieDay)+'">'+
  '<div class="summary" style="margin-top:15px"><div class="metric"><strong>'+formatWeight(goal)+'</strong><span>Goal</span></div><div class="metric"><strong>'+formatWeight(consumed)+'</strong><span>Eaten</span></div><div class="metric"><strong>'+formatWeight(Math.abs(remaining))+'</strong><span>'+(remaining>=0?'Remaining':'Over goal')+'</span></div></div>'+
  '<div class="calorie-progress"><div class="'+(consumed>goal?'over':'')+'" style="width:'+pct+'%"></div></div><p class="note">Calories are estimates. A day above or below your target is not a judgment of your progress.</p></section>'+
- recentlyScannedFoodsUI()+scannedFoodUI()+foodSearchUI()+'<section class="card"><h2>Add food or meal</h2><form id="calorie-form"><label class="input-label" for="food-name">Food or meal</label><input id="food-name" class="calorie-date" maxlength="120" required placeholder="e.g., Lunch – chicken and rice"><label class="input-label" for="food-kcal">Calories (kcal)</label><input id="food-kcal" class="calorie-date" type="number" inputmode="numeric" min="1" max="20000" required step="1" placeholder="e.g., 550"><button type="submit" class="btn" style="margin-top:12px;width:100%">Add calories</button></form></section>'+
+ recentlyScannedFoodsUI()+manualFoodFormUI()+scannedFoodUI()+foodSearchUI()+
  '<section class="card"><h2>Food log for '+esc(calorieDay)+'</h2>'+(items.length?items.map(e=>'<div class="calorie-entry"><div><strong>'+esc(e.name)+'</strong><div class="note">'+formatWeight(e.kcal)+' kcal</div></div><button class="btn tiny danger" data-calorie-delete="'+esc(e.id)+'" aria-label="Remove '+esc(e.name)+'">Delete</button></div>').join(''):'<p class="muted">No food entries for this day yet.</p>')+'</section>';
 }
-function addCalories(){
- const n=calorieInfo(),name=document.getElementById('food-name').value.trim(),kcal=Number(document.getElementById('food-kcal').value);
- if(!name||name.length>120||!Number.isInteger(kcal)||kcal<1||kcal>20000){alert('Enter a food name and calories from 1 to 20,000.');return}
- if(!Array.isArray(n.entries[calorieDay]))n.entries[calorieDay]=[];
- n.entries[calorieDay].push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,kcal});save();render();toast('Food added');
+const MANUAL_FOOD_LIMIT=30;
+let manualHistoryExpanded=false;
+function manualFoods(){
+ const n=calorieInfo();
+ if(!Array.isArray(n.manualFoods))n.manualFoods=[];
+ return n.manualFoods;
 }
-
+function manualQuantityText(value,unit){
+ const qty=Number(value);
+ const label=unit==='cups'?(qty===1?'cup':'cups'):unit;
+ return qty.toLocaleString(undefined,{maximumFractionDigits:3})+' '+label;
+}
+function manualFoodFormUI(){
+ const history=manualFoods(),visible=manualHistoryExpanded?history:history.slice(0,5);
+ return '<section class="card" id="manual-food-card"><h2>Add food manually</h2>'+
+ '<p class="muted">Enter the amount you ate in grams (g), kilograms (kg), or cups. Enter the calories for that exact amount, not per 100 g.</p>'+
+ '<form id="calorie-form">'+
+ '<label class="input-label" for="food-name">Food or meal</label>'+
+ '<input id="food-name" class="calorie-date" maxlength="120" required placeholder="e.g., Homemade oatmeal" autocomplete="off">'+
+ '<div class="manual-food-fields">'+
+ '<div><label class="input-label" for="food-quantity">Quantity</label><input id="food-quantity" class="calorie-date" type="number" inputmode="decimal" min="0.001" max="10000" step="any" required value="100"></div>'+
+ '<div><label class="input-label" for="food-unit">Measurement</label><select id="food-unit"><option value="g">Grams (g)</option><option value="kg">Kilograms (kg)</option><option value="cups">Cups</option></select></div></div>'+
+ '<label class="input-label" for="food-kcal">Calories for this amount (kcal)</label>'+
+ '<input id="food-kcal" class="calorie-date" type="number" inputmode="numeric" min="1" max="20000" required step="1" placeholder="e.g., 250">'+
+ '<p class="note" id="manual-food-example" aria-live="polite">You are logging 100 g. Enter the calories for that portion.</p>'+
+ '<button type="submit" class="btn" style="margin-top:12px;width:100%">Add food to log</button></form>'+
+ (history.length?'<div class="manual-food-saved"><h3>My recent manual foods</h3><p class="note">Fill the form again with a saved item, then adjust the quantity and calories if needed.</p>'+
+ visible.map((f,i)=>'<div class="manual-saved-row"><div><strong>'+esc(f.name)+'</strong><div class="note">'+esc(manualQuantityText(f.quantity,f.unit))+' · '+formatWeight(f.kcal)+' kcal</div></div>'+
+ '<div class="manual-saved-actions"><button type="button" class="btn tiny secondary" data-manual-use="'+i+'">Fill form</button>'+
+ '<button type="button" class="btn tiny secondary" data-manual-remove="'+i+'" aria-label="Remove '+esc(f.name)+' from saved foods">×</button></div></div>').join('')+
+ (history.length>5?'<button type="button" class="btn tiny secondary" data-action="manual-more">'+(manualHistoryExpanded?'Show fewer':'Show all '+history.length)+'</button>':'')+
+ '</div>':'')+'</section>';
+}
+function updateManualFoodHint(){
+ const qty=Number(document.getElementById('food-quantity')?.value);
+ const unit=document.getElementById('food-unit')?.value;
+ const kcal=document.getElementById('food-kcal')?.value;
+ const hint=document.getElementById('manual-food-example');
+ if(!hint)return;
+ hint.textContent=Number.isFinite(qty)&&qty>0&&['g','kg','cups'].includes(unit)?
+  'You are logging '+manualQuantityText(qty,unit)+'. '+(kcal&&Number(kcal)>0?'Total: '+kcal+' kcal.':'Enter the calories for that portion.')+
+  (unit==='cups'?' Cup weights vary by food; no gram conversion is assumed.':''):
+  'Enter a positive quantity and choose a measurement.';
+}
+function fillManualFood(i){
+ const f=manualFoods()[i];
+ if(!f)return;
+ for(const [id,value] of [['food-name',f.name],['food-quantity',f.quantity],['food-unit',f.unit],['food-kcal',f.kcal]]){
+  const field=document.getElementById(id);
+  if(field)field.value=value;
+ }
+ updateManualFoodHint();
+ document.getElementById('manual-food-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function forgetManualFood(i){
+ const foods=manualFoods();
+ if(!Number.isInteger(i)||i<0||i>=foods.length)return;
+ const old=foods.slice();
+ foods.splice(i,1);
+ if(!save()){calorieInfo().manualFoods=old;return}
+ render();
+}
+function addCalories(){
+ const name=document.getElementById('food-name')?.value.trim(),
+  qty=Number(document.getElementById('food-quantity')?.value),
+  unit=document.getElementById('food-unit')?.value,
+  kcal=Number(document.getElementById('food-kcal')?.value);
+ if(!name||name.length>120||!Number.isFinite(qty)||qty<0.001||qty>10000||
+    !['g','kg','cups'].includes(unit)||!Number.isInteger(kcal)||kcal<1||kcal>20000){
+  alert('Enter a food name, positive quantity (up to 10,000), measurement, and calories from 1 to 20,000.');return
+ }
+ const n=calorieInfo();
+ if(!Array.isArray(n.entries[calorieDay]))n.entries[calorieDay]=[];
+ const priorFoods=manualFoods().slice();
+ const foodName=name+' ('+manualQuantityText(qty,unit)+')';
+ const entry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+  name:foodName,foodName:name,quantity:qty,quantityUnit:unit,kcal,source:'manual'};
+ const saved={name,quantity:qty,unit,kcal,lastUsed:new Date().toISOString()};
+ n.entries[calorieDay].push(entry);
+ n.manualFoods=[saved,...priorFoods.filter(f=>!(f.name?.toLowerCase()===name.toLowerCase()&&f.unit===unit))].slice(0,MANUAL_FOOD_LIMIT);
+ if(!save()){
+  n.entries[calorieDay]=n.entries[calorieDay].filter(f=>f!==entry);
+  n.manualFoods=priorFoods;
+  return;
+ }
+ render();toast('Food added');
+}
 
 let gymResults=[],gymMessage='Use your location to search for nearby gym names, or choose a city.',gymPlace='',gymRadius=5000,gymCoordinates=null,gymBusy=false,gymMapVisible=false,gymListStatus='idle',gymAccuracy=null,gymSearchSequence=0,gymLocationSource='none';
 let gymCachedLookup=null;
