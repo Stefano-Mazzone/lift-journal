@@ -745,6 +745,94 @@ const exerciseBank={
  core:['Cable Crunch','Dumbbell Lateral Raise','Standing Dumbbell Calf Raise']
 };
 
+
+const movementCatalogText=String.raw`Squat|legs|squat|Back Squat;Front Squat;Box Squat;Belt Squat Machine;Safety Bar Squat;Pause Squat;Pin Squat;Low Pin Squat;Pierre Roy Squat;Isometric Split Squat;Pendulum Squat;Barbell Front Squat;Barbell High-Bar Squat;Barbell Low-Bar Squat;Barbell Narrow-Stance Squat;Barbell Wide-Stance Squat;Barbell Hack Squat (Heels Elevated);Barbell Zercher Squat;Goblet Squat;Pistol Squat;Bodyweight Squat;DB Heel-Elevated Squat;DB Overhead Squat;Bulgarian Split Squat;Dumbbell Bulgarian Split Squat;Front-Foot-Elevated Split Squat;Barbell Front-Foot-Elevated Split Squat;Smith Machine Squat;Overhead Squat;Swiss Ball Wall Squat;Trap Bar Squat
+Lunge & Step-Up|legs|lunge|Walking Lunge;Reverse Lunge;Dumbbell Reverse Lunge;Dumbbell Front Lunge;Dumbbell Back Lunge;Dumbbell Deficit Reverse Lunge;Dumbbell Step-Up;Barbell Step-Up;Barbell Front Step-Up;Cross-Over Step-Up;Peterson Step-Up;Poliquin Step-Up;Lunge From Deficit Step;Jumping Lunge;Jumping Split Squat;Overhead Walking Lunge;Barbell Zercher Step-Up;Dumbbell Split Squat;Bulgarian DB Split Squat (Front Foot Elevated);Pistol Box Squat
+Deadlift & Hinge|legs|hinge|Conventional Deadlift;Deficit Deadlift;Sumo Deadlift;Sumo Deficit Deadlift;Trap Bar Deadlift;Romanian Deadlift;Dumbbell Romanian Deadlift;Single-Leg Romanian Deadlift;Single-Leg Dumbbell Romanian Deadlift;Stiff-Leg Deadlift;Single-Leg Stiff-Leg Deadlift;Snatch-Grip Deadlift;Rack Pull;Snatch Pull;Clean Pull;Bulgarian Deadlift;Band-Assisted Romanian Deadlift;Barbell Good Morning;Safety Bar Good Morning;Zercher Barbell Good Morning;Barbell Hip Thrust;Dumbbell Hip Thrust;Barbell Glute Bridge;Elevated Frog Glute Bridge;Single-Leg Glute Bridge;One-Leg Hip Thrust;Back Extension;Reverse Hyperextension;Incline Hyperextension 45°
+Leg Curl|legs|legcurl|Seated Leg Curl;Lying Leg Curl;Lying Leg Curl (Neutral Feet);Lying Leg Curl (Toes In);Lying Leg Curl (Plantar-Flexed);Seated Leg Curl (Toes In);Standing Single-Leg Curl;Nordic Curl;Eccentric Nordic Curl;Swiss Ball Leg Curl;Glute-Ham Raise;Kneeling Leg Curl;Leg Curl (Feet Neutral)
+Leg Extension & Press|legs|legpress|Leg Extension;Leg Press;Leg Press (Mid-Plate Hip Stance);Single-Leg Press;Hack Squat Machine
+Calf & Shin|legs|calf|Standing Calf Raise;Seated Calf Raise;Donkey Calf Raise;Barbell Standing Calf Raise;Dumbbell Standing Calf Raise;Leg Press Calf Raise;Single-Leg Standing Calf Raise;Tibialis Raise
+Chest Press|push|chestpress|Flat Barbell Bench Press;Flat Dumbbell Chest Press;Dumbbell Bench Press;Incline Barbell Bench Press;Incline Dumbbell Bench Press;Decline Bench Press;Decline Dumbbell Bench Press;Barbell Floor Press;Dumbbell Floor Press;Narrow-Grip Bench Press;Medium-Grip Bench Press;Close-Grip Bench Press;Close-Grip Dumbbell Press;Isometric Bench Press;Paused Bench Press;30° Incline Barbell Bench Press;Chest Press Machine;One-Arm Dumbbell Chest Press;Seated Floor Dumbbell Press;Push-Up;Regular-Stance Push-Up;Chest Dip;Incline Push-Up;Weighted Push-Up
+Chest Fly|push|chestfly|Cable Fly;Cable Crossover;Dumbbell Fly;Incline Dumbbell Fly;Decline Dumbbell Fly;One-Arm Cable Fly;One-Arm Crossover Fly;Pec Deck;Reverse-Grip Cable Fly;Low-Pulley Cable Fly;Swiss Ball Cable Fly;Low-Decline Dumbbell Fly;Dumbbell Pullover;Flat Dumbbell Fly
+Shoulder Press|push|shoulderpress|Standing Barbell Overhead Press;Seated Barbell Overhead Press;Standing Dumbbell Shoulder Press;Seated Dumbbell Shoulder Press;Dumbbell Overhead Press;One-Arm Standing Dumbbell Press;One-Arm Landmine Press;Landmine Press;Behind-the-Neck Military Press;Front Jammer Push Press;Arnold Press;Barbell Push Press;Log Press;Dumbbell Clean and Press;Lever Clean and Press
+Shoulder Raise|push|lateralraise|Dumbbell Lateral Raise;Cable Lateral Raise;One-Arm Cable Lateral Raise;One-Arm Low-Pulley Lateral Raise;Seated Dumbbell Lateral Raise;Dumbbell Front Raise;Dumbbell Bent-Over Lateral Raise;Prone Incline Dumbbell Lateral Raise;Incline Cable Lateral Raise;Low-Pulley Cross Lateral Raise;Dumbbell Cuban Press;Dumbbell Prone Y-Raise;Scaption Raise;Incline One-Arm Powell Raise;Hanging Garhammer Raise
+Triceps|push|triceps|Triceps Pressdown;Cable Triceps Pushdown;Triceps Rope Pressdown;Rope Triceps Extension;Overhead Dumbbell Triceps Extension;One-Arm Overhead Triceps Extension;EZ-Bar Lying Triceps Extension;Barbell Skull Crusher;Skullcrusher;Incline EZ-Bar Triceps Extension;Decline EZ-Bar Triceps Extension;Dumbbell Lying Triceps Extension;Incline Dumbbell Lying Triceps Extension;Dumbbell French Press;One-Arm Dumbbell French Press;Close-Grip Triceps Bench Press;Triceps Dip;One-Arm Triceps Pressdown;Low-Pulley Rope Triceps Extension;JM Press;Incline Close-Grip Dumbbell Press;High-Pulley French Press
+Biceps & Forearms|pull|biceps|Barbell Biceps Curl;Barbell Curl;Standing Barbell Curl;Dumbbell Biceps Curl;Dumbbell Curl;Hammer Curl;Hammer Curls;Reverse Dumbbell Curl;Reverse Barbell Curl;EZ-Bar Curl;Preacher Curl;Concentration Curl;Single-Arm Concentration Curl;Cable Biceps Curl;Cable Rope Curl;Cable Single-Arm Curl;Close-Grip Barbell Curl;Wide-Grip Barbell Curl;Incline Dumbbell Curl;Incline Supinated Dumbbell Curl;Standing Alternating Dumbbell Curl;Zottman Curl;Incline Zottman Curl;Scott Bench Curl;Cable Wrist Curl;Wrist Roller;Behind-the-Back Wrist Curl;Barbell Reverse Curl;Reverse-Grip EZ-Bar Curl;Seated Neutral-Grip Curl;Dumbbell Pronated Wrist Curl;Barbell Wrist Curl;Supinated Dumbbell Wrist Curl
+Horizontal Row|pull|row|Barbell Bent-Over Row;Barbell Bent-Over Row (Pronated Grip);Seated Cable Row;One-Arm Cable Row;One-Arm Dumbbell Row;Chest-Supported Row;Chest-Supported Dumbbell Row;Machine Row;Seated Machine Row;Seated Row (Neutral Grip);Seated Row (Pronated Grip);Medium Supinated-Grip Seated Row;One-Arm Chest-Supported Machine Row;One-Arm Seated Row to Hip;One-Arm Seated Row to Neck;Renegade Row;Inverted Row;Bodyweight Ring Row;Supine Row;T-Bar Row;Landmine Row;StrengthErg Seated Row;Dumbbell Row;Wide-Grip Cable Row
+Vertical Pull|pull|verticalpull|Pull-Up;Pullups;Wide-Grip Pull-Up;Chin-Up;Neutral-Grip Pull-Up;Assisted Pull-Up;One-Arm Assisted Pull-Up;Pull-Up Deficit;Lat Pulldown;Wide-Grip Lat Pulldown;Close Neutral-Grip Lat Pulldown;Medium Pronated-Grip Lat Pulldown;Medium Supinated-Grip Lat Pulldown;One-Arm Lat Pulldown;Close-Grip Lat Pulldown;Straight-Arm Pulldown;Straight-Arm Pulldown (Bent Over)
+Rear Delts & Upper Back|pull|rearDelt|Cable Face Pull;Face Pull;Cable Reverse Fly;Cable Pulley Reverse Fly;Bent-Over Reverse Fly;Reverse Pec Deck;Dumbbell Rear Delt Fly;Barbell Shrug;Dumbbell Shrug;One-Arm Shoulder Shrug;Low Cable Face Pull;Seated Rope Pull;High-Pulley Wood Chop
+Core|core|core|Copenhagen Plank;Plank;Side Plank;Pallof Press;Pallof Press (Isometric);Cable Crunch;Low-Pulley Swiss Ball Crunch;Swiss Ball Crunch;Swiss Ball Straight-Arm Crunch;Swiss Ball Speed Crunch;Floor Sit-Up;Weighted Sit-Up;Decline Sit-Up;Lying Leg Raise;Hanging Knee Raise;Hanging Leg Raise;Toes to Bar;Ab Wheel Rollout;Russian Twist;Cable Woodchop;Horizontal Cable Woodchop;Side Bend Isometric;Low Cable Side Bend;Dead Bug;Bird Dog;Hollow Hold;Q Lift (Side Plank)
+Carry & Conditioning|conditioning|carry|Farmer's Walk;Suitcase Carry;Sled Push;Sled Pull;Tire Flip;Sandbag Overhead Throw;Medicine Ball Slam;Medicine Ball Sit-Up and Throw;Medicine Ball Overhead Pass;Rotational Medicine Ball Throw;Bag Leg Kick;Jump Rope
+Power & Olympic Lifts|conditioning|olympic|Clean;Hang Clean;Barbell Hang Clean;Clean and Jerk;Jerk;Snatch;Power Snatch;Hang Power Snatch;High Pull;Barbell Clean High Pull;Kettlebell Snatch;Kettlebell Swing;Box Jump;Broad Jump;Standing Broad Jump;Depth Jump;Triple Jump Step-Up;Jump Squat;Dumbbell Thruster;Front Barbell Thruster;Slam Ball
+Mobility & Rotator Cuff|core|rotation|Cable External Rotation;External Rotation (Arm Abducted);Seated Cable External Rotation;Standing Low-Pulley External Rotation;Side-Lying Clam;Isometric Towel Pull;Rotational Band Pull;Shoulder Warm-Up Routine;Wrist Pronation;Wrist Supination;Neck Extension;Neck Flexion`;
+const movementCatalog=movementCatalogText.trim().split('\n').flatMap(line=>{
+ const [category,group,pattern,list]=line.split('|');
+ return list.split(';').map(name=>({name:name.trim(),category,group,pattern}));
+});
+const allExerciseRecords=(()=>{
+ const names=new Map();
+ const add=(r)=>{if(!r?.name)return;const key=r.name.trim().toLowerCase();if(!names.has(key))names.set(key,r)};
+ movementCatalog.forEach(add);
+ Object.values(exerciseBank).flat().forEach(name=>add({name,category:'Other',group:'other',pattern:'other'}));
+ cycles.forEach(c=>c.days.forEach(d=>d[1].forEach(e=>add({name:e.name,category:'Other',group:'other',pattern:'other'}))));
+ return [...names.values()].sort((a,b)=>a.name.localeCompare(b.name));
+})();
+function catalogWithUserExercises(){
+ const seen=new Set(),items=[];
+ const add=r=>{if(!r?.name)return;const key=r.name.toLowerCase().trim();if(!seen.has(key)){seen.add(key);items.push(r)}};
+ allExerciseRecords.forEach(add);
+ for(const s of Object.values(data.sessions||{}))for(const e of s.exercises||[])add({name:e.name,category:'Custom & Previous',group:'other',pattern:'other'});
+ if(data.customPlan)for(const d of data.customPlan.days||[])for(const e of d[1]||[])add({name:e.name,category:'Custom & Previous',group:'other',pattern:'other'});
+ return items.sort((a,b)=>a.name.localeCompare(b.name));
+}
+function identifyExercise(name){
+ const normalized=String(name||'').trim().toLowerCase();
+ const found=catalogWithUserExercises().find(x=>x.name.toLowerCase()===normalized);
+ if(found&&found.pattern!=='other')return found;
+ // Meaningful fallback for saved or personalized movement names.
+ const v=normalized;
+ let pattern='other',group='other',category='Other';
+ if(/bicep|curl|preacher|hammer curl|zottman|concentration/.test(v)&&!/leg curl|hamstring/.test(v)){pattern='biceps';group='pull';category='Biceps & Forearms'}
+ else if(/tricep|skull|pressdown|pushdown|french press/.test(v)){pattern='triceps';group='push';category='Triceps'}
+ else if(/calf|tibialis/.test(v)){pattern='calf';group='legs';category='Calf & Shin'}
+ else if(/leg curl|hamstring|nordic/.test(v)){pattern='legcurl';group='legs';category='Leg Curl'}
+ else if(/squat|leg press|leg extension/.test(v)){pattern=/leg press|extension/.test(v)?'legpress':'squat';group='legs';category='Squat'}
+ else if(/deadlift|good morning|hip thrust|glute bridge/.test(v)){pattern='hinge';group='legs';category='Deadlift & Hinge'}
+ else if(/lunge|step.up|split squat/.test(v)){pattern='lunge';group='legs';category='Lunge & Step-Up'}
+ else if(/pull.up|chin.up|pulldown/.test(v)){pattern='verticalpull';group='pull';category='Vertical Pull'}
+ else if(/row/.test(v)){pattern='row';group='pull';category='Horizontal Row'}
+ else if(/fly|crossover|pec deck/.test(v)){pattern='chestfly';group='push';category='Chest Fly'}
+ else if(/bench|chest press|push.up/.test(v)){pattern='chestpress';group='push';category='Chest Press'}
+ else if(/lateral raise|front raise/.test(v)){pattern='lateralraise';group='push';category='Shoulder Raise'}
+ else if(/shoulder press|overhead press|military press/.test(v)){pattern='shoulderpress';group='push';category='Shoulder Press'}
+ else if(/rear delt|reverse fly|face pull|shrug/.test(v)){pattern='rearDelt';group='pull';category='Rear Delts & Upper Back'}
+ else if(/plank|crunch|sit.up|abs|pallof|woodchop|leg raise/.test(v)){pattern='core';group='core';category='Core'}
+ return {name:String(name),category,group,pattern};
+}
+function movementEquipment(name){
+ const v=String(name).toLowerCase();
+ if(/\bdumbbell\b|\bdb\b/.test(v))return 'dumbbell';
+ if(/\bcable\b|\bpulley\b|\brope\b/.test(v))return 'cable';
+ if(/\bbarbell\b|\bez.bar\b|\bsafety bar\b|\bsmith\b/.test(v))return 'barbell';
+ if(/machine|pec deck|leg press|leg curl|lat pulldown/.test(v))return 'machine';
+ if(/bodyweight|push.up|pull.up|chin.up|plank/.test(v))return 'bodyweight';
+ return 'any';
+}
+function exerciseAlternatives(name,limit=8){
+ const source=identifyExercise(name);
+ const baseEquipment=movementEquipment(name);
+ return catalogWithUserExercises().filter(r=>r.name.toLowerCase()!==String(name).toLowerCase())
+ .map(r=>{
+  const identified=r.pattern==='other'?identifyExercise(r.name):r;
+  const exact=source.pattern!=='other'&&identified.pattern===source.pattern;
+  const sameGroup=source.group!=='other'&&identified.group===source.group;
+  const sameEquipment=baseEquipment!=='any'&&movementEquipment(r.name)===baseEquipment;
+  const score=(exact?100:0)+(sameGroup?25:0)+(sameEquipment?16:0)+(r.name.toLowerCase().includes(String(name).toLowerCase().split(' ')[0])?3:0);
+  return {...r,score,reason:exact?'Same Movement Pattern':sameGroup?'Same Muscle Group':'Alternative'};
+ })
+ .filter(r=>r.score>=25).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
+}
+
 function generatedRoutine(goal,days,equipment){
  const strength=goal==='strength',general=goal==='general',sets=strength?4:general?2:3,reps=strength?'5–8':general?'10–15':'8–12';
  const choose=(group,i)=>{
@@ -761,9 +849,7 @@ function generatedRoutine(goal,days,equipment){
 }
 function programDraftClone(plan){return JSON.parse(JSON.stringify(plan))}
 function workoutLetter(index){return 'ABCDEFG'[index]||String(index+1)}
-function draftWorkoutOptions(){
- return [...new Set(Object.values(exerciseBank).flat().concat(cycles.flatMap(c=>c.days.flatMap(d=>d[1].map(e=>e.name)))))].sort((a,b)=>a.localeCompare(b));
-}
+function draftWorkoutOptions(){return catalogWithUserExercises().map(x=>x.name)}
 function draftReview(){
  if(!draftPlan)return '';
  const count=draftPlan.days.length,idx=Math.min(Math.max(0,draftExpanded),count-1),workout=draftPlan.days[idx];
@@ -926,6 +1012,7 @@ function weightChart(entry){
 }
 function movements(){
  const logged=recordedMovements(),libraryNames=new Map();
+ catalogWithUserExercises().forEach(item=>libraryNames.set(item.name.toLowerCase(),item.name));
  cycles.forEach(c=>c.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name))));
  if(data.customPlan)data.customPlan.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name)));
  for(const s of Object.values(data.sessions)){
