@@ -452,9 +452,23 @@ async function gymSearch(lat,lon){
  gymBusy=false;render();
 }
 function gymNear(){
- if(!window.isSecureContext||!navigator.geolocation){gymMessage='Location is unavailable in this browser. Open the HTTPS site in Safari, or use the Apple Maps / Google Maps buttons.';render();return}
- gymBusy=true;gymMessage='Requesting location permission…';render();
- try{navigator.geolocation.getCurrentPosition(p=>{if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)){gymBusy=false;gymMessage='Location coordinates could not be read. Open Apple Maps or Google Maps instead.';render();return}gymSearch(p.coords.latitude,p.coords.longitude)},err=>{gymBusy=false;const details=err.code===1?'Location permission was denied. Check Settings → Privacy & Security → Location Services → Safari Websites, then allow location access.':err.code===2?'Your device could not determine its location. Make sure Location Services are on.':err.code===3?'Location request timed out. Try again where GPS or Wi-Fi reception is better.':'Location is unavailable.';gymMessage=details+' You can still use Apple Maps, Google Maps or search by city.';render()},{enableHighAccuracy:false,timeout:20000,maximumAge:60000})}catch(err){gymBusy=false;gymMessage='Location request failed: '+err.message+'. Use Apple Maps, Google Maps or city search.';render()}
+ const status=document.getElementById('gym-status');
+ const show=message=>{gymMessage=message;if(document.getElementById('gym-status'))document.getElementById('gym-status').textContent=message};
+ show('Requesting your iPhone location…');
+ if(!window.isSecureContext||!navigator.geolocation){show('This browser cannot share location. Try opening Lift Journal directly in Safari, or use Apple Maps or Google Maps.');return}
+ if(gymBusy){show('A gym search is already running.');return}
+ gymBusy=true;
+ let finished=false;
+ const complete=(message)=>{if(finished)return;finished=true;gymBusy=false;if(message)show(message)};
+ // Keep the original button and page mounted while iOS presents its permission dialog.
+ // Re-rendering this screen before getCurrentPosition can interrupt the prompt in Home Screen web apps.
+ try{
+ navigator.geolocation.getCurrentPosition(
+ p=>{if(finished)return;complete();if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)){show('Location unavailable. Try Apple Maps or Google Maps.');return}gymSearch(p.coords.latitude,p.coords.longitude)},
+ err=>{if(finished)return;const msg=err.code===1?'Location access was denied. On iPhone, check Settings → Privacy & Security → Location Services → Safari Websites, and also try opening Lift Journal directly in Safari.':err.code===2?'Your phone could not determine its location. Check Location Services, Wi-Fi and GPS.':err.code===3?'Location request timed out. Try again with a stronger connection.':'Location is unavailable.';complete(msg+' You can also use Apple Maps or Google Maps.');},
+ {enableHighAccuracy:false,timeout:15000,maximumAge:0}
+ );
+ }catch(err){complete('Location request failed: '+err.message+'. Try either Maps button.')}
 }
 async function gymCity(q){
  gymPlace=q.trim();gymBusy=true;gymMessage='Finding city…';render();
