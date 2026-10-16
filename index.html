@@ -36,7 +36,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 @keyframes lj-inline-spin{to{transform:rotate(360deg)}}
 .update-status{min-height:75px}
 .update-symbol.checking .update-wheel{animation:lj-spin .7s linear infinite!important}
-</style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
+.food-quick-search{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}.food-quick-search .btn{padding:7px 10px;font-size:12px}</style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Program changes are manual. Each program repeats A/B/C until the user advances.
@@ -612,30 +612,77 @@ Cake, vanilla frosted|350|4|54|15||cake
 Protein powder, whey|390|78|8|5||protein shake
 Protein bar|380|30|35|14||protein bars`.trim().split('\n').map(line=>{const [name,kcal,protein,carbs,fat,cup,aliases]=line.split('|');return {name,kcal:Number(kcal),protein:Number(protein),carbs:Number(carbs),fat:Number(fat),cup:cup?Number(cup):null,aliases,source:'Typical nutrition estimate'};});
 stapleFoods.push(...extraFoods.filter(f=>!stapleFoods.some(x=>x.name.toLowerCase()===f.name.toLowerCase())));
-let foodResults=[],foodQuery='',foodMessage='';
+
+let foodResults=[],foodQuery='',foodMessage='',foodRequestId=0;
+const foodCache=new Map();
+function normFood(t){
+ return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/yoghurt/g,'yogurt').replace(/[^a-z0-9]+/g,' ').trim().replace(/\bsteaks\b/g,'steak').replace(/\bsausages\b/g,'sausage').replace(/\beggs\b/g,'egg').replace(/\bpotatoes\b/g,'potato').replace(/\btomatoes\b/g,'tomato');
+}
+function matchFood(food,query){
+ const title=normFood(food.name),other=normFood(food.aliases||'');
+ const words=normFood(query).split(' ').filter(Boolean);
+ const joined=title+' '+other;
+ if(!words.length||!words.every(t=>joined.includes(t)))return -1;
+ const phrase=words.join(' ');
+ return (title===phrase?1000:0)+(title.startsWith(phrase)?180:0)+(title.includes(phrase)?85:0)+words.reduce((n,w)=>n+(title.split(' ').includes(w)?12:0),0)-title.length/25;
+}
+function localFoodMatches(query){
+ return stapleFoods.map(food=>({food,score:matchFood(food,query)})).filter(x=>x.score>=0).sort((a,b)=>b.score-a.score||a.food.name.localeCompare(b.food.name)).map(x=>x.food);
+}
 function foodSearchUI(){
- return '<section class="card"><h2>Search foods</h2><p class="muted">Search common foods or packaged products. Generic nutrition estimates are per 100 g; cup equivalents are approximate and depend on preparation.</p><form id="food-search-form" class="barcode-row"><input id="food-query" class="calorie-date" maxlength="80" required placeholder="Chicken breast" value="'+esc(foodQuery)+'"><button class="btn secondary" type="submit">Search</button></form><p class="note">'+esc(foodMessage)+'</p>'+
- foodResults.map((f,i)=>'<div class="calorie-entry"><div><strong>'+esc(f.name)+'</strong><div class="note">'+formatWeight(f.kcal)+' kcal/100 g · '+esc(f.source)+'</div></div><button class="btn tiny secondary" data-food-pick="'+i+'">Select</button></div>').join('')+'</section>';
+ const quick=['Steak','Pork','Sausage','Butter','Yogurt','Chicken','Rice'];
+ return '<section class="card"><h2>Search food calories</h2><p class="muted">Search hundreds of common foods and preparations, or look up packaged products online. Generic values are approximate per 100 grams.</p>'+
+ '<form id="food-search-form" class="barcode-row"><input id="food-query" class="calorie-date" maxlength="80" required placeholder="e.g., sirloin steak, pork sausage, Greek yogurt" value="'+esc(foodQuery)+'"><button class="btn secondary" type="submit">Search</button></form>'+
+ '<div class="food-quick-search"><span class="note">Popular:</span>'+quick.map(s=>'<button class="btn tiny secondary" data-food-example="'+esc(s)+'">'+esc(s)+'</button>').join('')+'</div>'+
+ '<p class="note" aria-live="polite">'+esc(foodMessage)+'</p>'+
+ foodResults.map((f,i)=>'<div class="calorie-entry"><div><strong>'+esc(f.name)+'</strong><div class="note">'+formatWeight(f.kcal)+' kcal / 100 g · '+esc(f.source)+'</div></div><button class="btn tiny secondary" data-food-pick="'+i+'">Select</button></div>').join('')+'</section>';
 }
 async function findFoods(q){
- foodQuery=String(q).trim();const tokens=foodQuery.toLowerCase().split(/\s+/).filter(Boolean);
- foodResults=stapleFoods.filter(f=>tokens.every(t=>f.name.toLowerCase().includes(t)));
- foodMessage='Searching online packaged foods…';render();
- try{
- const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(foodQuery)+'&search_simple=1&action=process&json=1&page_size=12&fields=code,product_name,brands,nutriments';
- const response=await fetch(url);if(!response.ok)throw Error('Unavailable');const json=await response.json();
- for(const p of json.products||[]){const n=p.nutriments||{},k=Number(n['energy-kcal_100g']);if(!p.product_name||!Number.isFinite(k)||k<=0)continue;
- const num=key=>n[key]==null?null:Number(n[key]);
- foodResults.push({name:p.product_name,kcal:k,protein:num('proteins_100g'),carbs:num('carbohydrates_100g'),fat:num('fat_100g'),code:p.code,source:p.brands||'Open Food Facts'});
- }
- foodResults=foodResults.slice(0,20);foodMessage=foodResults.length?'Choose the correct product and verify nutrition.':'No matching foods found.';
- }catch{foodMessage=foodResults.length?'Showing generic estimates; online lookup unavailable.':'Food search unavailable. Try manual calorie entry.'}
+ foodQuery=String(q||'').trim();
+ if(!foodQuery){foodResults=[];foodMessage='Enter a food name.';render();return}
+ const requestId=++foodRequestId,local=localFoodMatches(foodQuery),localVisible=local.slice(0,60),queryKey=normFood(foodQuery);
+ foodResults=localVisible;
+ foodMessage=local.length?local.length+' local matches found. Checking packaged foods online…':'Searching packaged foods online…';
  render();
+ if(foodCache.has(queryKey)){
+  const products=foodCache.get(queryKey);
+  foodResults=[...localVisible,...products].slice(0,75);
+  foodMessage=foodResults.length?'Select the right food, cut or brand, then adjust grams or cups.':'No match found. Try fewer words.';
+  render();return;
+ }
+ try{
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8500);
+  const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(foodQuery)+'&search_simple=1&action=process&json=1&page_size=15&fields=code,product_name,brands,nutriments';
+  let response;
+  try{response=await fetch(url,{signal:controller.signal})}finally{clearTimeout(timer)}
+  if(!response.ok)throw Error('The product database is unavailable');
+  const json=await response.json();
+  if(requestId!==foodRequestId)return;
+  const products=[],seen=new Set();
+  for(const p of json.products||[]){
+   const n=p.nutriments||{},k=Number(n['energy-kcal_100g']);
+   if(!p.product_name||!Number.isFinite(k)||k<=0||k>950)continue;
+   const key=String(p.code||normFood(p.product_name)+'-'+p.brands);
+   if(seen.has(key))continue;seen.add(key);
+   const numeric=key=>n[key]==null||!Number.isFinite(Number(n[key]))?null:Number(n[key]);
+   products.push({name:p.product_name,kcal:k,protein:numeric('proteins_100g'),carbs:numeric('carbohydrates_100g'),fat:numeric('fat_100g'),code:p.code||'',source:p.brands?'Packaged · '+p.brands:'Open Food Facts',cup:null});
+  }
+  foodCache.set(queryKey,products);
+  foodResults=[...localVisible,...products].slice(0,75);
+  foodMessage=foodResults.length?'Select the correct preparation or brand. Package labels take priority for exact products.':'No matches. Try a shorter or alternative name.';
+ }catch(e){
+  if(requestId!==foodRequestId)return;
+  foodResults=localVisible;
+  foodMessage=local.length?'Showing '+local.length+' local matches. Online packaged-food search is currently unavailable.':'No local matches. Online product search is unavailable; try a simpler search or manual entry.';
+ }
+ if(requestId===foodRequestId)render();
 }
 function chooseFood(i){
  const f=foodResults[i];if(!f)return;
  scannedFood={...f,code:f.code||'',brand:f.source,serving:f.cup?'1 cup ≈ '+f.cup+' g':'100 g',portion:100,sugars:null,fiber:null};
- barcodeMessage='Review the serving amount and nutrition.';render();portionFacts();
+ barcodeMessage='Review your portion and nutrition before logging. Generic foods are estimates.';
+ render();portionFacts();
+ document.querySelector('.barcode-preview')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function scannedFoodUI(){
  const f=scannedFood;
@@ -850,7 +897,7 @@ async function gymCity(q){
   await gymSearch(Number(results[0].lat),Number(results[0].lon));
  }catch(err){gymBusy=false;gymMessage=err.message+'. Try a more specific city and region.';render()}
 }
-const APP_VERSION='1.16.3',APP_UPDATED_AT='2026-10-16T04:21:51.151Z';
+const APP_VERSION='1.17.0',APP_UPDATED_AT='2026-10-16T04:33:43.248Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
@@ -938,7 +985,7 @@ function initTabNavigation(){
   }
  }catch(e){if(!next.classList.contains('is-hidden'))next.classList.add('hint-bounce')}
 }
-document.addEventListener('click',e=>{const t=e.target.closest('[data-food-pick],[data-calorie-delete],[data-movement-key],[data-movement],[data-tab],[data-action],[data-day],[data-open],[data-slot],[data-skip],[data-calendar-date]');if(!t)return;if(t.dataset.foodPick!==undefined){chooseFood(Number(t.dataset.foodPick));return}if(t.dataset.calorieDelete){const n=calorieInfo();n.entries[calorieDay]=(n.entries[calorieDay]||[]).filter(x=>x.id!==t.dataset.calorieDelete);save();render();return}if(t.dataset.movementKey){movementSelected=t.dataset.movementKey;render();return}if(t.dataset.movement){changeMovement(Number(t.dataset.index),t.dataset.movement);return}if(t.dataset.tab){stopBarcodeCamera();editing=null;tab=t.dataset.tab;render();showSelectedNavTab();scrollTo(0,0);return}if(t.dataset.day!==undefined){day=Number(t.dataset.day);selectedSlot=null;render();return}if(t.dataset.calendarDate){const match=monthSchedule().find(a=>a.date===t.dataset.calendarDate);if(match){selectedSlot=match.slot;day=match.day;render();document.querySelector('.move-panel')?.scrollIntoView({block:'nearest'});}return}if(t.dataset.slot){selectedSlot=t.dataset.slot;day=Number(t.dataset.planDay);render();return}if(t.dataset.skip){const key=t.dataset.skip,old=data.schedule[key]||{};data.schedule[key]={...old,status:old.status==='skipped'?'planned':'skipped'};if(selectedSlot===key)selectedSlot=null;save();render();return}if(t.dataset.open){editing=t.dataset.open;tab='train';render();scrollTo(0,0);return}switch(t.dataset.action){case'move':{if(!selectedSlot)return;const v=document.getElementById('move-date')?.value;if(!v||!v.startsWith(month+'-')){alert('Choose a date in this month.');return}const old=data.schedule[selectedSlot]||{};data.schedule[selectedSlot]={...old,date:v,status:'planned'};save();selectedSlot=null;render();toast('Workout moved');break}case'advance':startNextProgram();break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'barcode-camera':startBarcodeCamera();break;case'barcode-stop':stopBarcodeCamera();updateBarcodeMessage('Camera stopped.');break;case'add-scanned':addScannedFood();break;case'generate':{const goal=document.getElementById('gen-goal').value,days=Number(document.getElementById('gen-days').value),eq=document.getElementById('gen-equipment').value;activateCustomPlan(generatedRoutine(goal,days,eq));break}case'save-plan':saveBuilder();break;case'prev':selectedSlot=null;shiftMonth(-1);break;case'next':selectedSlot=null;shiftMonth(1);break;case'start':if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':editing=findActive()?.key;render();break;case'back':editing=null;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'history':editing=null;tab='history';render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':if(confirm('Delete ALL workouts saved on this browser? This cannot be undone.')){data.sessions={};data.schedule={};data.program={index:0,number:1,started:new Date().toISOString(),history:[]};save();editing=null;render();toast('Local workout history cleared')}break}});
+document.addEventListener('click',e=>{const t=e.target.closest('[data-food-example],[data-food-pick],[data-calorie-delete],[data-movement-key],[data-movement],[data-tab],[data-action],[data-day],[data-open],[data-slot],[data-skip],[data-calendar-date]');if(!t)return;if(t.dataset.foodExample){findFoods(t.dataset.foodExample);return}if(t.dataset.foodPick!==undefined){chooseFood(Number(t.dataset.foodPick));return}if(t.dataset.calorieDelete){const n=calorieInfo();n.entries[calorieDay]=(n.entries[calorieDay]||[]).filter(x=>x.id!==t.dataset.calorieDelete);save();render();return}if(t.dataset.movementKey){movementSelected=t.dataset.movementKey;render();return}if(t.dataset.movement){changeMovement(Number(t.dataset.index),t.dataset.movement);return}if(t.dataset.tab){stopBarcodeCamera();editing=null;tab=t.dataset.tab;render();showSelectedNavTab();scrollTo(0,0);return}if(t.dataset.day!==undefined){day=Number(t.dataset.day);selectedSlot=null;render();return}if(t.dataset.calendarDate){const match=monthSchedule().find(a=>a.date===t.dataset.calendarDate);if(match){selectedSlot=match.slot;day=match.day;render();document.querySelector('.move-panel')?.scrollIntoView({block:'nearest'});}return}if(t.dataset.slot){selectedSlot=t.dataset.slot;day=Number(t.dataset.planDay);render();return}if(t.dataset.skip){const key=t.dataset.skip,old=data.schedule[key]||{};data.schedule[key]={...old,status:old.status==='skipped'?'planned':'skipped'};if(selectedSlot===key)selectedSlot=null;save();render();return}if(t.dataset.open){editing=t.dataset.open;tab='train';render();scrollTo(0,0);return}switch(t.dataset.action){case'move':{if(!selectedSlot)return;const v=document.getElementById('move-date')?.value;if(!v||!v.startsWith(month+'-')){alert('Choose a date in this month.');return}const old=data.schedule[selectedSlot]||{};data.schedule[selectedSlot]={...old,date:v,status:'planned'};save();selectedSlot=null;render();toast('Workout moved');break}case'advance':startNextProgram();break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'barcode-camera':startBarcodeCamera();break;case'barcode-stop':stopBarcodeCamera();updateBarcodeMessage('Camera stopped.');break;case'add-scanned':addScannedFood();break;case'generate':{const goal=document.getElementById('gen-goal').value,days=Number(document.getElementById('gen-days').value),eq=document.getElementById('gen-equipment').value;activateCustomPlan(generatedRoutine(goal,days,eq));break}case'save-plan':saveBuilder();break;case'prev':selectedSlot=null;shiftMonth(-1);break;case'next':selectedSlot=null;shiftMonth(1);break;case'start':if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':editing=findActive()?.key;render();break;case'back':editing=null;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'history':editing=null;tab='history';render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':if(confirm('Delete ALL workouts saved on this browser? This cannot be undone.')){data.sessions={};data.schedule={};data.program={index:0,number:1,started:new Date().toISOString(),history:[]};save();editing=null;render();toast('Local workout history cleared')}break}});
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
 document.addEventListener('submit',e=>{if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;if(t.id==='barcode-photo'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.id==='plan-days'){document.querySelectorAll('[data-builder-day]').forEach((el,i)=>el.hidden=i>=Number(t.value));return}if(t.dataset.weekday!==undefined){let i=Number(t.dataset.weekday),v=Number(t.value);if(data.weekdays.some((d,j)=>j!==i&&d===v)){alert('Choose a different weekday for each workout.');render();return}data.weekdays[i]=v;save();render();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||s.finished)return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p)p.style.width=(100*completed/total)+'%'}}});
 document.addEventListener('change',async e=>{if(e.target.id!=='import')return;let f=e.target.files[0];if(!f)return;try{let incoming=JSON.parse(await f.text()),obj=incoming.data||incoming;if(!obj.sessions||typeof obj.sessions!=='object'||Array.isArray(obj.sessions)||!['kg','lb'].includes(obj.unit))throw Error('Invalid file');if(!confirm('Replace all currently saved workouts with this backup?'))return;data={sessions:obj.sessions,unit:obj.unit,weekdays:Array.isArray(obj.weekdays)&&obj.weekdays.length===3?obj.weekdays:[1,3,5],schedule:obj.schedule||{},program:obj.program&&Number.isInteger(obj.program.index)?obj.program:{index:0,number:1,started:new Date().toISOString(),history:[]},customPlan:obj.customPlan||null,nutrition:obj.nutrition||{goal:2000,entries:{}}};if(!Array.isArray(data.program.history))data.program.history=[];save();editing=null;tab='history';render();toast('Backup restored')}catch(err){alert('Cannot import backup: '+err.message)}e.target.value=''});
