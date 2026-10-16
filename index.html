@@ -1132,7 +1132,7 @@ let coachMessages=[{who:'coach',text:'Tell me what you want to train. For exampl
 let coachRequest=null,coachBusy=false;
 const COACH_MAX_MESSAGES=16;
 function coachMinutes(text,fallback=45){
- const match=text.match(/\b(\d{1,3})\s*(?:min(?:ute)?s?|mins?)\b/i)||
+ const match=text.match(/\b(\d{1,3})[\s-]*(?:min(?:ute)?s?|mins?)\b/i)||
    text.match(/\b(?:for|in)\s+(\d{1,3})\s*m\b/i);
  if(!match)return fallback;
  const value=Number(match[1]);
@@ -1155,11 +1155,12 @@ function coachInterpretRequest(raw){
   (data.trainerProfile?.goal||'muscle');
  const count=q.match(/\b([1-7])\s*[- ]?\s*(?:day|days)\s*(?:per|a|each)?\s*week\b/)||
   q.match(/\b([1-7])\s*[- ]?\s*(?:day|days)\s*(?:plan|program|split|routine)\b/)||
-  q.match(/\b(?:workout|train|training|exercise)\s*([1-7])\s*(?:days?|times?)\s*(?:a|per|each)?\s*week\b/);
+  q.match(/\b(?:workout|train|training|exercise)\s*([1-7])\s*(?:days?|times?)\s*(?:a|per|each)?\s*week\b/)||
+  q.match(/\b([1-7])\s*[- ]?\s*days?\b/);
  const days=count?Number(count[1]):(Array.isArray(data.weekdays)?data.weekdays.length:3);
  const isProgram=!!count||/\b(program|routine|weekly plan|weekly split|training split|schedule|per week|each week)\b/.test(q);
- const focus=/\b(legs?|lower body|glutes?|quads?|hamstrings?)\b/.test(q)?'lower':
-  /\b(upper body|arms?|chest|back|shoulders?|biceps?|triceps?)\b/.test(q)?'upper':'full';
+ const focus=/\b(legs?|lower[\s-]?body|glutes?|quads?|hamstrings?)\b/.test(q)?'lower':
+  /\b(upper[\s-]?body|arms?|chest|back|shoulders?|biceps?|triceps?)\b/.test(q)?'upper':'full';
  const favoriteOnly=/\b(favou?rites?|starred|saved exercises?)\b/.test(q);
  const light=/\b(light|easy|gentle|tired|low energy|short session)\b/.test(q);
  const minutes=coachMinutes(q,data.trainerProfile?.minutes||45);
