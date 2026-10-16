@@ -36,7 +36,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 @keyframes lj-inline-spin{to{transform:rotate(360deg)}}
 .update-status{min-height:75px}
 .update-symbol.checking .update-wheel{animation:lj-spin .7s linear infinite!important}
-.food-quick-search{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}.food-quick-search .btn{padding:7px 10px;font-size:12px}</style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
+.food-quick-search{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}.food-quick-search .btn{padding:7px 10px;font-size:12px}.movement-list{max-height:350px;overflow-y:auto;overscroll-behavior:contain;padding-right:3px}</style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Program changes are manual. Each program repeats A/B/C until the user advances.
@@ -185,23 +185,38 @@ function sessionView(){
 function train(){if(editing&&data.sessions[editing])return sessionView();let active=findActive(),c=cycleFor(month);return header(`<h1>Train</h1><p class="sub">Start a scheduled workout, select another day, or pick up where you left off.</p>`)+monthControl()+(active?`<div class="card hero"><h2>Unfinished workout</h2><p class="muted">Started ${new Date(active.started).toLocaleString()}</p>${button('Resume session','resume')}</div>`:'')+scheduleView()+dayCards()+`<section class="card"><h2>${esc(c.days[day][0])}</h2>${c.days[day][1].map(e=>`<div class="row" style="border-top:1px solid var(--line);padding:11px 0"><div class="exercise-summary"><div class="exercise-summary-title">${esc(e.name)}</div>${previousPreview(e)}</div><strong style="white-space:nowrap">${e.sets} × ${esc(e.reps)}</strong></div>`).join('')}${button('Start new workout','start')}</section>`}
 
 let tonnagePeriod='week',tonnageUnit=null;
-function tonnageRecords(){
- const result=[];
- Object.values(data.sessions).forEach(s=>{
-  if(!s||!s.finished)return;
-  let total=0,sets=0;
-  for(const e of s.exercises||[]){
-   if(e.skipped)continue;
-   for(const set of e.sets||[]){
-    if(!set.done)continue;
-    const w=loggedNumber(set.weight),r=loggedNumber(set.reps);
-    if(w===null||r===null||r<=0)continue;
-    total+=w*r;sets++;
-   }
+
+/* A set with numeric reps and weight is an actual logged set, even if the user
+   didn't tick Done. That checkbox remains useful for workout progress.
+   In-progress sessions are included in charts but labelled provisional. */
+function validWeightRep(set){
+ if(!set)return null;
+ const weight=loggedNumber(set.weight),reps=loggedNumber(set.reps);
+ if(weight===null||reps===null||reps<=0)return null;
+ return {weight,reps,done:!!set.done};
+}
+function workoutWeightLogs(s){
+ if(!s||!Array.isArray(s.exercises))return [];
+ const logs=[];
+ for(const exercise of s.exercises){
+  if(!exercise||exercise.skipped||!Array.isArray(exercise.sets))continue;
+  for(const set of exercise.sets){
+   const entry=validWeightRep(set);
+   if(entry)logs.push({name:String(exercise.name||'Unnamed exercise').trim(),...entry});
   }
-  if(sets)result.push({date:s.finished,unit:s.unit||data.unit,total,sets});
- });
- return result.sort((a,b)=>a.date.localeCompare(b.date));
+ }
+ return logs;
+}
+function tonnageRecords(){
+ const records=[];
+ for(const s of Object.values(data.sessions)){
+  const logs=workoutWeightLogs(s);
+  if(!logs.length)continue;
+  const date=s.finished||s.started||new Date().toISOString();
+  const total=logs.reduce((sum,entry)=>sum+entry.weight*entry.reps,0);
+  records.push({date,unit:s.unit||data.unit,total,sets:logs.length,provisional:!s.finished});
+ }
+ return records.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
 }
 function tonnageKey(date,period){
  const d=new Date(date);
@@ -212,7 +227,7 @@ function tonnageKey(date,period){
  return isoDate(monday);
 }
 function tonnagePlot(entries,unit,period){
- if(!entries.length)return '<p class="muted">No completed workouts with recorded weights and reps yet. Your tonnage graph will appear after your first workout.</p>';
+ if(!entries.length)return '<p class="muted">No sets with both weight and reps were found in this unit. Enter reps and weight in Train to see tonnage. Workouts in progress are included as provisional.</p>';
  const grouped=new Map();
  for(const e of entries){const k=tonnageKey(e.date,period);grouped.set(k,(grouped.get(k)||0)+e.total)}
  const rows=[...grouped].sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
@@ -227,16 +242,16 @@ function tonnagePlot(entries,unit,period){
  return '<div class="tonnage-bars"><svg viewBox="0 0 '+width+' '+height+'" class="tonnage-chart" role="img" aria-label="Training volume bar chart, last '+rows.length+' '+(period==='session'?'sessions':period==='week'?'weeks':'months')+' in '+esc(unit)+'">'+guides+bars+'<text x="'+(width/2)+'" y="'+(height-3)+'" text-anchor="middle" fill="#b0c1d0" font-size="10">'+(period==='session'?'Workout date':period==='week'?'Week starting':'Month')+'</text></svg></div>';
 }
 function tonnageView(){
- const records=tonnageRecords(),unit=tonnageUnit||data.unit,selected=records.filter(x=>x.unit===unit);
- const overall=selected.reduce((n,x)=>n+x.total,0),last=selected[selected.length-1];
- return '<section class="card"><h2>Training tonnage over time</h2><p class="muted">Tonnage (training volume) is the sum of weight × reps for every completed set. This is a workload indicator, not your one-rep max or literal tons.</p>'+
+ const records=tonnageRecords(),unit=tonnageUnit||(records.some(x=>x.unit===data.unit)?data.unit:records[records.length-1]?.unit||data.unit),selected=records.filter(x=>x.unit===unit);
+ const overall=selected.reduce((n,x)=>n+x.total,0),last=selected[selected.length-1],drafts=selected.filter(x=>x.provisional).length;
+ return '<section class="card"><h2>Training tonnage over time</h2><p class="muted">Tonnage (training volume) is weight × reps for every set with a recorded weight and rep count. This is a workload indicator, not your one-rep max or literal tons.</p>'+
  '<div class="tonnage-settings"><label>Group by<select id="tonnage-period"><option value="session" '+(tonnagePeriod==='session'?'selected':'')+'>Workout</option><option value="week" '+(tonnagePeriod==='week'?'selected':'')+'>Week</option><option value="month" '+(tonnagePeriod==='month'?'selected':'')+'>Month</option></select></label>'+
  '<label>Weight unit<select id="tonnage-unit"><option value="lb" '+(unit==='lb'?'selected':'')+'>Pounds (lb)</option><option value="kg" '+(unit==='kg'?'selected':'')+'>Kilograms (kg)</option></select></label></div>'+
  '<div class="summary"><div class="metric"><strong>'+selected.length+'</strong><span>Logged workouts</span></div><div class="metric"><strong>'+formatWeight(overall)+'</strong><span>Total '+esc(unit)+' × reps</span></div><div class="metric"><strong>'+(last?formatWeight(last.total):'—')+'</strong><span>Latest workout</span></div></div>'+
  tonnagePlot(selected,unit,tonnagePeriod)+
- '<p class="tonnage-note">Only finished workouts and checked sets with valid weight and reps are counted. Skipped exercises are excluded. Historical lb and kg records are shown separately without conversion. The chart displays up to 12 recent periods.</p></section>';
+ '<p class="tonnage-note">'+(drafts?drafts+' workout(s) are still in progress: their logged volume is shown as provisional. ':'')+'Filled-in weights and reps count, even without checking Done. Skipped exercises are excluded. Pounds and kilograms are displayed separately. Up to 12 recent periods are shown.</p></section>';
 }
-function history(){let entries=Object.entries(data.sessions).map(([key,s])=>({...s,key})).sort((a,b)=>b.started.localeCompare(a.started)),completed=entries.filter(s=>s.finished),sets=completed.reduce((n,s)=>n+s.exercises.reduce((a,e)=>a+e.sets.filter(v=>v.done).length,0),0);return header(`<h1>Workout history</h1><p class="sub">Review the weights, reps and sets you've logged.</p>`)+`<div class="summary"><div class="metric"><strong>${completed.length}</strong><span>Workouts</span></div><div class="metric"><strong>${sets}</strong><span>Sets done</span></div><div class="metric"><strong>${new Set(completed.map(s=>s.month)).size}</strong><span>Months active</span></div></div>`+tonnageView()+(entries.length?`<section class="card">${entries.map(s=>`<div class="history-item"><div class="row"><div><strong>${esc(cycleForSession(s).days[s.day][0])}</strong><div class="note">${new Date(s.started).toLocaleDateString()} · Program ${s.programNumber||'legacy'} · ${s.finished?'Completed':'In progress'} · ${s.exercises.reduce((n,e)=>n+e.sets.filter(v=>v.done).length,0)} sets</div></div><button class="btn tiny secondary" data-open="${esc(s.key)}">View</button></div></div>`).join('')}</section>`:'<div class="card empty">No workouts yet. Start your first session to build your history.</div>')}
+function history(){let entries=Object.entries(data.sessions).map(([key,s])=>({...s,key})).sort((a,b)=>String(b.started).localeCompare(String(a.started))),completed=entries.filter(s=>s.finished),sets=completed.reduce((n,s)=>n+workoutWeightLogs(s).length,0);return header(`<h1>Workout history</h1><p class="sub">Review the weights, reps and sets you've logged.</p>`)+`<div class="summary"><div class="metric"><strong>${completed.length}</strong><span>Workouts</span></div><div class="metric"><strong>${sets}</strong><span>Weighted sets logged</span></div><div class="metric"><strong>${new Set(completed.map(s=>s.month)).size}</strong><span>Months active</span></div></div>`+tonnageView()+(entries.length?`<section class="card">${entries.map(s=>`<div class="history-item"><div class="row"><div><strong>${esc(cycleForSession(s).days[s.day][0])}</strong><div class="note">${new Date(s.started).toLocaleDateString()} · Program ${s.programNumber||'legacy'} · ${s.finished?'Completed':'In progress'} · ${workoutWeightLogs(s).length} weighted sets</div></div><button class="btn tiny secondary" data-open="${esc(s.key)}">View</button></div></div>`).join('')}</section>`:'<div class="card empty">No workouts yet. Start your first session to build your history.</div>')}
 
 const exerciseBank={
  legs:['Pendulum Squat','Leg Curl Machine','Dumbbell Romanian Deadlift','Dumbbell Reverse Lunge','Standing Dumbbell Calf Raise'],
@@ -291,20 +306,25 @@ function saveBuilder(){
 
 let movementSelected='',movementFilter='';
 function recordedMovements(){
- const all=new Map();
- Object.values(data.sessions).filter(s=>s&&s.finished).forEach(s=>{
-  const date=s.finished||s.started;
-  (s.exercises||[]).forEach(e=>{
-   if(e.skipped)return;
-   const sets=(e.sets||[]).filter(x=>x.done&&loggedNumber(x.weight)!==null&&loggedNumber(x.reps)>0);
-   if(!sets.length)return;
-   const name=e.name.trim(),unit=s.unit||data.unit,weight=Math.max(...sets.map(x=>Number(x.weight)));
+ const byName=new Map();
+ for(const s of Object.values(data.sessions)){
+  if(!s||!Array.isArray(s.exercises))continue;
+  const date=s.finished||s.started||new Date().toISOString(),unit=s.unit||data.unit;
+  for(const exercise of s.exercises){
+   if(!exercise||exercise.skipped||!Array.isArray(exercise.sets))continue;
+   const sets=exercise.sets.map(validWeightRep).filter(Boolean);
+   if(!sets.length)continue;
+   const name=String(exercise.name||'Unnamed exercise').trim();
    const key=name.toLocaleLowerCase()+'|'+unit;
-   if(!all.has(key))all.set(key,{name,unit,entries:[]});
-   all.get(key).entries.push({date,weight,sets:sets.length,reps:sets.map(x=>Number(x.reps))});
-  });
- });
- return [...all.values()].map(x=>({...x,entries:x.entries.sort((a,b)=>a.date.localeCompare(b.date))})).sort((a,b)=>a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
+   if(!byName.has(key))byName.set(key,{name,unit,entries:[]});
+   byName.get(key).entries.push({
+    date,weight:Math.max(...sets.map(v=>v.weight)),
+    sets:sets.length,reps:sets.map(v=>v.reps),provisional:!s.finished
+   });
+  }
+ }
+ return [...byName.values()].map(x=>({...x,entries:x.entries.sort((a,b)=>String(a.date).localeCompare(String(b.date)))}))
+   .sort((a,b)=>a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
 }
 function weightChart(entry){
  const pts=entry.entries,w=340,height=170,left=39,right=12,top=15,bottom=32,plotW=w-left-right,plotH=height-top-bottom;
@@ -322,18 +342,32 @@ function movements(){
  const logged=recordedMovements(),libraryNames=new Map();
  cycles.forEach(c=>c.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name))));
  if(data.customPlan)data.customPlan.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name)));
- Object.values(data.sessions).forEach(s=>(s.exercises||[]).forEach(e=>{libraryNames.set(e.name.toLowerCase(),e.name);if(e.originalName)libraryNames.set(e.originalName.toLowerCase(),e.originalName)}));
+ for(const s of Object.values(data.sessions)){
+  if(!s||!Array.isArray(s.exercises))continue;
+  for(const e of s.exercises){
+   if(!e||!e.name)continue;
+   libraryNames.set(e.name.toLowerCase(),e.name);
+   if(e.originalName)libraryNames.set(e.originalName.toLowerCase(),e.originalName);
+  }
+ }
  const all=[...libraryNames.values()].map(name=>logged.find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.unit===data.unit)||{name,unit:data.unit,entries:[]});
- logged.forEach(x=>{if(!all.some(e=>e.name===x.name&&e.unit===x.unit))all.push(x)});
- all.sort((a,b)=>a.name.localeCompare(b.name));
- const q=movementFilter.toLocaleLowerCase(),filtered=all.filter(x=>x.name.toLocaleLowerCase().includes(q));
- const chosen=all.find(x=>x.name+'|'+x.unit===movementSelected)||filtered[0]||null;
- const names=filtered.map(x=>'<button class="movement-choice '+(chosen===x?'chosen':'')+'" data-movement-key="'+esc(x.name+'|'+x.unit)+'">'+esc(x.name)+' <span class="note">('+esc(x.unit)+', '+x.entries.length+' sessions)</span></button>').join('');
- const detail=chosen?'<section class="card"><h2>'+esc(chosen.name)+'</h2><p class="muted">Highest weight from completed sets in each logged session ('+esc(chosen.unit)+'). Each dot represents one workout.</p>'+weightChart(chosen)+'<h3>Recorded sessions</h3><div style="overflow-x:auto"><table class="movement-table"><thead><tr><th>Date</th><th>Top weight</th><th>Sets logged</th><th>Reps per set</th></tr></thead><tbody>'+chosen.entries.slice().reverse().map(x=>'<tr><td>'+esc(new Date(x.date).toLocaleDateString())+'</td><td>'+formatWeight(x.weight)+' '+esc(chosen.unit)+'</td><td>'+x.sets+'</td><td>'+x.reps.join(', ')+'</td></tr>').join('')+'</tbody></table></div></section>':'<section class="card"><p class="muted">Complete a workout and check off sets with weights and reps to see a movement chart here.</p></section>';
- return header('<h1>Movement history</h1><p class="sub">Track your lifting progress by exercise. Your records stay on this device.</p>')+
- '<section class="card"><label class="input-label" for="movement-search">Find an exercise</label><input id="movement-search" class="movement-search" placeholder="Search movements..." value="'+esc(movementFilter)+'"><div class="movement-list">'+(names||'<p class="muted">No matching recorded exercises yet.</p>')+'</div></section>'+detail;
+ logged.forEach(x=>{if(!all.some(e=>e.name.toLowerCase()===x.name.toLowerCase()&&e.unit===x.unit))all.push(x)});
+ all.sort((a,b)=>(b.entries.length>0)-(a.entries.length>0)||a.name.localeCompare(b.name)||a.unit.localeCompare(b.unit));
+ const q=movementFilter.trim().toLocaleLowerCase(),filtered=all.filter(x=>x.name.toLocaleLowerCase().includes(q));
+ const chosen=filtered.find(x=>x.name+'|'+x.unit===movementSelected)||filtered.find(x=>x.entries.length>0)||filtered[0]||null;
+ const names=filtered.map(x=>'<button class="movement-choice '+(chosen===x?'chosen':'')+'" data-movement-key="'+esc(x.name+'|'+x.unit)+'">'+esc(x.name)+' <span class="note">('+esc(x.unit)+', '+x.entries.length+' logged sessions)</span></button>').join('');
+ const detail=chosen?'<section class="card"><h2>'+esc(chosen.name)+'</h2><p class="muted">Highest recorded weight per workout ('+esc(chosen.unit)+'). Sets with weight and reps count even if Done was not checked.</p>'+
+ weightChart(chosen)+
+ (chosen.entries.some(x=>x.provisional)?'<p class="note">Some entries are from unfinished workouts and are provisional.</p>':'')+
+ '<h3>Recorded sessions</h3><div style="overflow-x:auto"><table class="movement-table"><thead><tr><th>Date</th><th>Top weight</th><th>Logged sets</th><th>Reps</th></tr></thead><tbody>'+
+ chosen.entries.slice().reverse().map(x=>'<tr><td>'+esc(new Date(x.date).toLocaleDateString())+(x.provisional?' · In progress':'')+'</td><td>'+formatWeight(x.weight)+' '+esc(chosen.unit)+'</td><td>'+x.sets+'</td><td>'+x.reps.join(', ')+'</td></tr>').join('')+
+ '</tbody></table></div></section>':
+ '<section class="card"><p class="muted">No matching exercise. Search the library or enter a workout with weights and reps.</p></section>';
+ return header('<h1>Movement history</h1><p class="sub">Track your lifting progress by exercise. Exercises with logged weights appear first, and your data stays on this device.</p>')+
+ detail+'<section class="card"><label class="input-label" for="movement-search">Find an exercise</label><input id="movement-search" class="movement-search" placeholder="Search movements..." value="'+esc(movementFilter)+'"><div class="movement-list">'+
+ (names||'<p class="muted">No exercises match your search.</p>')+
+ '</div></section>';
 }
-
 let calorieDay=isoDate(new Date());
 function calorieInfo(){
  if(!data.nutrition||typeof data.nutrition!=='object')data.nutrition={goal:2000,entries:{}};
@@ -897,7 +931,7 @@ async function gymCity(q){
   await gymSearch(Number(results[0].lat),Number(results[0].lon));
  }catch(err){gymBusy=false;gymMessage=err.message+'. Try a more specific city and region.';render()}
 }
-const APP_VERSION='1.17.0',APP_UPDATED_AT='2026-10-16T04:33:43.248Z';
+const APP_VERSION='1.17.1',APP_UPDATED_AT='2026-10-16T04:36:49.758Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
