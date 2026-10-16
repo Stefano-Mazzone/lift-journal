@@ -802,6 +802,13 @@ function train(){
    button('Resume session','resume')+'</section>':'')+scheduleView();
 }
 let tonnagePeriod='week',tonnageUnit=null;
+const POUNDS_PER_KILOGRAM=2.2046226218487757;
+function convertHistoryWeight(value,fromUnit,toUnit){
+ if(fromUnit===toUnit)return value;
+ if(fromUnit==='lb'&&toUnit==='kg')return value/POUNDS_PER_KILOGRAM;
+ if(fromUnit==='kg'&&toUnit==='lb')return value*POUNDS_PER_KILOGRAM;
+ return value;
+}
 
 /* A set with numeric reps and weight is an actual logged set, even if the user
    didn't tick Done. That checkbox remains useful for workout progress.
@@ -844,7 +851,7 @@ function tonnageKey(date,period){
  return isoDate(monday);
 }
 function tonnagePlot(entries,unit,period){
- if(!entries.length)return '<p class="muted">No sets with both weight and reps were found in this unit. Enter reps and weight in Train to see tonnage. Workouts in progress are included as provisional.</p>';
+ if(!entries.length)return '<p class="muted">No workouts with both recorded weight and reps were found yet. Add weights and reps in Train to see tonnage. In-progress workouts are included as provisional.</p>';
  const grouped=new Map();
  for(const e of entries){const k=tonnageKey(e.date,period);grouped.set(k,(grouped.get(k)||0)+e.total)}
  const rows=[...grouped].sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
@@ -859,14 +866,17 @@ function tonnagePlot(entries,unit,period){
  return '<div class="tonnage-bars"><svg viewBox="0 0 '+width+' '+height+'" class="tonnage-chart" role="img" aria-label="Training volume bar chart, last '+rows.length+' '+(period==='session'?'sessions':period==='week'?'weeks':'months')+' in '+esc(unit)+'">'+guides+bars+'<text x="'+(width/2)+'" y="'+(height-3)+'" text-anchor="middle" fill="#b0c1d0" font-size="10">'+(period==='session'?'Workout date':period==='week'?'Week starting':'Month')+'</text></svg></div>';
 }
 function tonnageView(){
- const records=tonnageRecords(),unit=tonnageUnit||(records.some(x=>x.unit===data.unit)?data.unit:records[records.length-1]?.unit||data.unit),selected=records.filter(x=>x.unit===unit);
+ const records=tonnageRecords(),unit=tonnageUnit||data.unit;
+ // Convert the volume of each recorded workout into the selected display unit.
+ // Never overwrite s.unit or stored sets: other views and backups must keep the original values.
+ const selected=records.map(x=>({...x,total:convertHistoryWeight(x.total,x.unit,unit),unit}));
  const overall=selected.reduce((n,x)=>n+x.total,0),last=selected[selected.length-1],drafts=selected.filter(x=>x.provisional).length;
  return '<section class="card"><h2>Training tonnage over time</h2><p class="muted">Tonnage (training volume) is weight × reps for every set with a recorded weight and rep count. This is a workload indicator, not your one-rep max or literal tons.</p>'+
  '<div class="tonnage-settings"><label>Group by<select id="tonnage-period"><option value="session" '+(tonnagePeriod==='session'?'selected':'')+'>Workout</option><option value="week" '+(tonnagePeriod==='week'?'selected':'')+'>Week</option><option value="month" '+(tonnagePeriod==='month'?'selected':'')+'>Month</option></select></label>'+
  '<label>Weight unit<select id="tonnage-unit"><option value="lb" '+(unit==='lb'?'selected':'')+'>Pounds (lb)</option><option value="kg" '+(unit==='kg'?'selected':'')+'>Kilograms (kg)</option></select></label></div>'+
  '<div class="summary"><div class="metric"><strong>'+selected.length+'</strong><span>Logged workouts</span></div><div class="metric"><strong>'+formatWeight(overall)+'</strong><span>Total '+esc(unit)+' × reps</span></div><div class="metric"><strong>'+(last?formatWeight(last.total):'—')+'</strong><span>Latest workout</span></div></div>'+
  tonnagePlot(selected,unit,tonnagePeriod)+
- '<p class="tonnage-note">'+(drafts?drafts+' workout(s) are still in progress: their logged volume is shown as provisional. ':'')+'Filled-in weights and reps count, even without checking Done. Skipped exercises are excluded. Pounds and kilograms are displayed separately. Up to 12 recent periods are shown.</p></section>';
+ '<p class="tonnage-note">'+(drafts?drafts+' workout(s) are still in progress: their logged volume is shown as provisional. ':'')+'Filled-in weights and reps count, even without checking Done. Skipped exercises are excluded. All recorded workouts are included and converted to your selected display unit (1 lb = 0.45359237 kg). Original saved weights remain unchanged. Up to 12 recent periods are shown.</p></section>';
 }
 
 let historyDateEditId=null,workoutDateEditId=null;
@@ -2074,7 +2084,7 @@ async function gymCity(q){
  }
 }
 
-const APP_VERSION='1.21.3',APP_UPDATED_AT='2026-10-16T06:30:14.194Z';
+const APP_VERSION='1.21.4',APP_UPDATED_AT='2026-10-16T06:34:07.486Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
