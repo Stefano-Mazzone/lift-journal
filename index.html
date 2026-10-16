@@ -271,7 +271,12 @@ function savedWorkoutDateEditor(id){
   '<button type="button" class="btn secondary" data-action="cancel-workout-date">Cancel</button></div></div>';
 }
 function openSavedWorkoutDateEditor(id){
- if(!data.sessions[id])return;
+ const session=data.sessions[id];if(!session)return;
+ if((tab==='home'||tab==='train')&&editing!==id){
+  const date=scheduledWorkoutDate(session);
+  month=date.slice(0,7);selectedDate=date;
+  selectedSlot=monthSchedule(month).find(a=>a.date===date&&a.day===session.day)?.slot||null;
+ }
  workoutDateEditId=workoutDateEditId===id?null:id;
  render();
  if(workoutDateEditId)document.getElementById('saved-workout-date-editor')?.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -288,8 +293,8 @@ function moveRecordedWorkout(id,chosen){
  const oldSlot=s.slot||monthSchedule(oldMonth).find(a=>a.date===previous&&a.day===s.day)?.slot;
  if(oldSlot)data.schedule[oldSlot]={...(data.schedule[oldSlot]||{}),status:'relocated'};
  const newMonth=chosen.slice(0,7);
- const target=monthSchedule(newMonth).find(a=>a.date===chosen&&a.day===s.day&&a.status!=='skipped'&&
-  !Object.entries(data.sessions).some(([key,other])=>key!==id&&other&&other.slot===a.slot));
+ const target=!occupied.length?monthSchedule(newMonth).find(a=>a.date===chosen&&a.day===s.day&&a.status!=='skipped'&&
+  !Object.entries(data.sessions).some(([key,other])=>key!==id&&other&&other.slot===a.slot)):null;
  s.scheduledDate=chosen;s.month=newMonth;s.slot=target?.slot||null;
  save();workoutDateEditId=null;historyDateEditId=null;
  if(tab==='home'||tab==='train'){
