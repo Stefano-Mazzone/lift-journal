@@ -1101,10 +1101,10 @@ function trainerProfile(p=setupPrefs){return {goal:p.goal,experience:p.experienc
  limits:[...(p.limits||[])],limitStatus:p.limits?.length?p.limitStatus:'none',notes:String(p.notes||'').trim().slice(0,180)}}
 function trainerAreaRisk(name,area){
  const v=String(name||'').toLowerCase();
- if(area==='knee')return /squat|lunge|step.up|leg press|leg extension|jump|thruster|pistol|split squat/.test(v);
+ if(area==='knee')return /squat|lunge|step.up|leg press|leg extension|jump|thruster|pistol|split squat|deadlift|romanian|calf raise|standing calf/.test(v);
  if(area==='hip')return /squat|lunge|step.up|deadlift|hip thrust|bridge|leg press|split squat|jump/.test(v);
  if(area==='ankle')return /squat|lunge|step.up|calf|jump|run|walk|split squat/.test(v);
- if(area==='back')return /deadlift|romanian|good morning|bent.over|back squat|front squat|overhead|shrug|hyperextension|rack pull/.test(v);
+ if(area==='back')return /deadlift|romanian|good morning|bent.over|back squat|front squat|overhead|shrug|hyperextension|rack pull|back extension|glute bridge|hip thrust/.test(v);
  if(area==='shoulder')return /shoulder|overhead|press|bench|fly|lateral|front raise|dip|push.up|snatch|jerk/.test(v);
  if(area==='elbow')return /curl|triceps|pressdown|extension|bench|press|dip/.test(v);
  if(area==='neck')return /overhead|neck|shrug|back squat|front squat|shoulder press/.test(v);
@@ -1117,7 +1117,7 @@ function trainerCaution(name,profile=data.trainerProfile){
 function trainerEquipmentFit(name,equipment){
  const v=String(name).toLowerCase();
  if(!equipment||equipment==='all')return true;
- if(equipment==='dumbbells')return !/barbell|smith|machine|cable|pulldown|pulley|pec deck|leg press|pendulum|seated leg curl|rack pull/.test(v);
+ if(equipment==='dumbbells')return !/barbell|ez.bar|smith|machine|cable|pulldown|pulley|pec deck|leg press|pendulum|seated leg curl|rack pull|inverted row/.test(v);
  if(equipment==='cables')return !/barbell|dumbbell|ez.bar|smith|leg press|pendulum|hack squat|kettlebell|machine row|leg curl machine/.test(v);
  return true;
 }
@@ -1131,11 +1131,16 @@ const TRAINER_POOLS={
  core:['Dead Bug','Bird Dog','Pallof Press','Side Plank','Cable Crunch'],
  recovery:['Dead Bug','Bird Dog','Side-Lying Clam','Pallof Press','Cable External Rotation','Plank']
 };
+const TRAINER_EQUIPMENT_POOLS={
+ dumbbells:{squat:['Goblet Squat','Dumbbell Split Squat','Bodyweight Squat'],hinge:['Dumbbell Romanian Deadlift','Single-Leg Dumbbell Romanian Deadlift','Glute Bridge'],push:['Dumbbell Floor Press','Push-Up','Dumbbell Bench Press'],pull:['One-Arm Dumbbell Row','Dumbbell Row','Renegade Row'],arms:['Dumbbell Curl','Hammer Curl','Standing Alternating Dumbbell Curl'],accessory:['Dumbbell Lateral Raise','Standing Dumbbell Calf Raise','Scaption Raise'],core:['Dead Bug','Bird Dog','Side Plank','Plank'],recovery:['Dead Bug','Bird Dog','Side-Lying Clam','Plank']},
+ cables:{squat:['Bodyweight Squat','Split Squat','Pistol Squat'],hinge:['Glute Bridge','Back Extension'],push:['Cable Fly','Push-Up','One-Arm Cable Fly'],pull:['Seated Cable Row','One-Arm Cable Row','Lat Pulldown'],arms:['Cable Biceps Curl','Cable Triceps Pushdown','Triceps Rope Pressdown'],accessory:['Cable Face Pull','Cable Lateral Raise','Pallof Press'],core:['Pallof Press','Cable Crunch','Dead Bug','Side Plank'],recovery:['Dead Bug','Bird Dog','Pallof Press','Cable External Rotation']}
+};
 function trainerCanUse(name,profile){
  return trainerEquipmentFit(name,profile.equipment)&&!(profile.limitStatus==='current'&&(profile.limits||[]).some(area=>trainerAreaRisk(name,area)));
 }
 function trainerChoose(group,profile,index,used){
- const candidates=(TRAINER_POOLS[group]||[]).filter(name=>trainerCanUse(name,profile)&&!used.has(name));
+ const pool=TRAINER_EQUIPMENT_POOLS[profile.equipment]?.[group]||TRAINER_POOLS[group]||[];
+ const candidates=pool.filter(name=>trainerCanUse(name,profile)&&!used.has(name));
  if(!candidates.length)return null;
  const name=candidates[index%candidates.length];used.add(name);return name;
 }
