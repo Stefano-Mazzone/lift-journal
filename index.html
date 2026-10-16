@@ -139,6 +139,27 @@ h1{font-weight:750}h2{font-weight:710}
 .weekday-toggle{min-width:0;border:1px solid var(--line);background:var(--surface2);color:var(--muted);border-radius:9px;padding:12px 0;font-size:12px;cursor:pointer}
 .weekday-toggle.active{border-color:var(--accent);background:#234d40;color:var(--accent)}
 @media(max-width:380px){.weekday-toggle{font-size:11px}.weekday-toggle-row{gap:3px}}
+
+.program-builder{border-color:#486c61;margin:18px 0}
+.program-builder h2{margin:0 0 5px}
+.builder-close{border:1px solid var(--line);background:var(--surface2);border-radius:10px;color:var(--muted);width:34px;height:34px;font-size:23px;line-height:1}
+.program-builder input,.program-builder select{width:100%;background:var(--surface2);border:1px solid #425366;border-radius:10px;color:var(--text);padding:11px;font:inherit;min-width:0}
+.builder-start-actions,.draft-final-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:16px 0}
+.draft-review-title h3{margin:5px 0 0}
+.draft-day-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px}
+.draft-day-chips{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:10px 0}
+.draft-day-chip{background:var(--surface2);color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:12px 4px;font:700 13px/1 sans-serif}
+.draft-day-chip.active{background:#214539;color:var(--accent);border-color:var(--accent)}
+.draft-workout-heading{margin-top:15px}
+.draft-exercise{border:1px solid #374d58;border-radius:12px;padding:12px;margin:12px 0;background:#14232a}
+.draft-exercise-header{display:flex;align-items:center;justify-content:space-between}
+.draft-exercise-num{font-weight:700;font-size:13px}
+.draft-remove{font-size:12px;color:#ffc3c3;background:none;border:0;padding:7px}
+.draft-two-fields{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;margin-top:12px}
+.draft-two-fields label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px}
+.draft-summary{border-top:1px solid var(--line);margin-top:20px;padding-top:14px}
+.draft-add{width:100%}
+@media(max-width:460px){.builder-start-actions,.draft-final-actions{grid-template-columns:1fr}.draft-day-chips{gap:3px}.draft-day-chip{font-size:12px;padding:11px 2px}.draft-two-fields{grid-template-columns:85px minmax(0,1fr)}}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -663,49 +684,150 @@ const exerciseBank={
  pull:['Lat Pulldown','Seated Cable Row','One-Arm Cable Row','Dumbbell Curl','Cable Face Pull'],
  core:['Cable Crunch','Dumbbell Lateral Raise','Standing Dumbbell Calf Raise']
 };
+
 function generatedRoutine(goal,days,equipment){
- const strength=goal==='strength',fat=goal==='general',sets=strength?4:fat?2:3,reps=strength?'5–8':fat?'10–15':'8–12';
- const choose=(group,i)=>{let arr=exerciseBank[group].filter(x=>equipment==='dumbbells'?(!/Cable|Pulldown|Pendulum|Leg Curl|Bench Press$/.test(x)||x==='Dumbbell Bench Press'):equipment==='cables'? !/Dumbbell|Pendulum|Leg Curl|Flat Bench/.test(x):true);
- if(!arr.length)arr=exerciseBank[group];return arr[i%arr.length]};
- const result=[];
+ const strength=goal==='strength',general=goal==='general',sets=strength?4:general?2:3,reps=strength?'5–8':general?'10–15':'8–12';
+ const choose=(group,i)=>{
+  let arr=exerciseBank[group].filter(x=>equipment==='dumbbells'?(!/Cable|Pulldown|Pendulum|Leg Curl|Bench Press$/.test(x)||x==='Dumbbell Bench Press'):equipment==='cables'? !/Dumbbell|Pendulum|Leg Curl|Flat Bench/.test(x):true);
+  if(!arr.length)arr=exerciseBank[group];
+  return arr[i%arr.length];
+ };
+ const planDays=[];
  for(let i=0;i<days;i++){
   const names=[choose('legs',i),choose('push',i),choose('pull',i),choose('legs',i+1),choose(i%2?'pull':'push',i+2)];
-  result.push(['Full Body '+String.fromCharCode(65+i),names.map((n,j)=>X(n,j===4?2:sets,j===4?'12–15':reps,j===0?120:90))]);
+  planDays.push(['Full Body '+String.fromCharCode(65+i),names.map((name,j)=>X(name,j===4?2:sets,j===4?'12–15':reps,j===0?120:90))]);
  }
- return {label:'Personalized '+goal,focus:'Generated for '+days+' days weekly · '+equipment,days:result};
+ return {label:'Personalized '+(goal==='muscle'?'Muscle Builder':goal==='strength'?'Strength Plan':'Fitness Plan'),focus:'Generated for '+days+' training days',days:planDays};
+}
+function programDraftClone(plan){return JSON.parse(JSON.stringify(plan))}
+function workoutLetter(index){return 'ABCDEFG'[index]||String(index+1)}
+function draftWorkoutOptions(){
+ return [...new Set(Object.values(exerciseBank).flat().concat(cycles.flatMap(c=>c.days.flatMap(d=>d[1].map(e=>e.name)))))].sort((a,b)=>a.localeCompare(b));
+}
+function draftReview(){
+ if(!draftPlan)return '';
+ const count=draftPlan.days.length,idx=Math.min(Math.max(0,draftExpanded),count-1),workout=draftPlan.days[idx];
+ const options=draftWorkoutOptions(),swapOptions='<option value="">Swap with an exercise…</option>'+options.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+ const dayButtons=draftPlan.days.map((d,i)=>'<button type="button" class="draft-day-chip'+(idx===i?' active':'')+'" data-draft-day="'+i+'" aria-pressed="'+(idx===i)+'">'+workoutLetter(i)+'</button>').join('');
+ const exercises=workout[1].map((ex,j)=>'<div class="draft-exercise">'+
+  '<div class="draft-exercise-header"><span class="draft-exercise-num">Exercise '+(j+1)+'</span>'+
+  '<button type="button" class="draft-remove" data-draft-remove="'+j+'" aria-label="Remove '+esc(ex.name)+'">Remove</button></div>'+
+  '<label class="input-label" for="draft-ex-'+j+'">Exercise Name</label>'+
+  '<input id="draft-ex-'+j+'" data-draft-exname="'+j+'" maxlength="90" value="'+esc(ex.name)+'" autocomplete="off">'+
+  '<div class="draft-two-fields"><label>Sets<input type="number" data-draft-sets="'+j+'" min="1" max="10" inputmode="numeric" value="'+esc(ex.sets)+'"></label>'+
+  '<label>Rep Target<input data-draft-reps="'+j+'" maxlength="30" value="'+esc(ex.reps)+'"></label></div>'+
+  '<label class="input-label" for="draft-swap-'+j+'">Or Choose a Replacement</label>'+
+  '<select id="draft-swap-'+j+'" data-draft-swap="'+j+'">'+swapOptions+'</select></div>').join('');
+ return '<section class="draft-review" id="draft-review">'+
+  '<div class="draft-review-title"><span class="workout-picker-step">REVIEW BEFORE ACTIVATING</span><h3>Customize Your Program</h3>'+
+  '<p class="note">Nothing has changed in your active program. Adjust any exercise, set count or rep range below, then activate only when ready.</p></div>'+
+  '<label for="draft-plan-title" class="input-label">Program Name</label><input id="draft-plan-title" data-draft-field="label" maxlength="65" value="'+esc(draftPlan.label)+'">'+
+  '<label for="draft-plan-focus" class="input-label">Description</label><input id="draft-plan-focus" data-draft-field="focus" maxlength="110" value="'+esc(draftPlan.focus||'')+'">'+
+  '<div class="draft-day-toolbar"><strong>Workout Types ('+count+')</strong><span class="note">Tap a letter to edit that day</span></div>'+
+  '<div class="draft-day-chips" role="group" aria-label="Choose a workout to edit">'+dayButtons+'</div>'+
+  '<div class="draft-workout-heading"><label class="input-label" for="draft-workout-name">Workout Name</label>'+
+  '<input id="draft-workout-name" data-draft-workout-name="'+idx+'" maxlength="65" value="'+esc(workout[0])+'"></div>'+
+  exercises+
+  '<button type="button" class="btn secondary draft-add" data-action="draft-add-exercise">+ Add Exercise</button>'+
+  '<div class="draft-summary"><strong>Ready to Apply?</strong><p class="note">This plan has '+count+' workout types and '+draftPlan.days.reduce((sum,d)=>sum+d[1].length,0)+' total exercises. Activation will adjust your selected training days to '+count+' per week; you can then customize weekdays in Plan. Your existing workout records stay saved.</p>'+
+  '<div class="draft-final-actions">'+button('Activate This Program','apply-draft')+button('Discard Draft','discard-draft','secondary')+'</div></div></section>';
 }
 function planBuilder(){
- const p=cycleFor(month),lines=p.days.map(x=>x[1].map(e=>e.name+' | '+e.sets+' | '+e.reps).join('\n'));
- return '<section class="card personal-builder"><h2>Personalize your workouts</h2><p class="muted">Generate a full-body routine or build your own. Your changes apply only on this device; friends can create different plans on their phones.</p>'+
- '<h3>Automatic generator</h3><label for="gen-goal">Primary goal</label><select id="gen-goal"><option value="muscle">Build muscle</option><option value="strength">Gain strength</option><option value="general">General fitness</option></select>'+
- '<label for="gen-days">Days per week</label><select id="gen-days"><option value="3">3 days</option><option value="2">2 days</option></select>'+
- '<label for="gen-equipment">Available equipment</label><select id="gen-equipment"><option value="all">Full gym / your listed equipment</option><option value="dumbbells">Mostly dumbbells</option><option value="cables">Mostly cables</option></select>'+
- button('Generate my program','generate','secondary')+
- '<p class="note">The generator uses predefined exercise selections. Review them and adjust as needed; it is not a professional coaching assessment.</p>'+
- '<h3>Manual builder</h3><label for="plan-title">Program name</label><input id="plan-title" maxlength="65" value="'+esc(p.label)+'">'+
- '<label for="plan-days">Workout days per week</label><select id="plan-days"><option value="3" '+(p.days.length===3?'selected':'')+'>3 days</option><option value="2" '+(p.days.length===2?'selected':'')+'>2 days</option></select>'+
- [0,1,2].map(i=>'<div class="manual-day" data-builder-day="'+i+'" '+(i>=p.days.length?'hidden':'')+'><label for="manual-'+i+'">Workout '+String.fromCharCode(65+i)+' — one exercise per line</label><textarea id="manual-'+i+'" spellcheck="false" placeholder="Dumbbell Bench Press | 3 | 8-12">'+esc(lines[i]||'')+'</textarea></div>').join('')+
- '<p class="note">Format: Exercise name | sets | reps. Example: Seated Cable Row | 3 | 10-12. Up to 12 exercises per workout, 1–10 sets each.</p>'+
- button('Save my custom program','save-plan')+'</section>';
+ const dayOptions=Array.from({length:7},(_,i)=>i+1).map(n=>'<option value="'+n+'" '+(n===data.weekdays.length?'selected':'')+'>'+n+' '+(n===1?'Day':'Days')+'</option>').join('');
+ return '<section class="card program-builder" id="program-builder"><div class="row"><div><h2>Build a Program</h2>'+
+  '<p class="note">Create a routine, review every exercise, then decide when to activate it.</p></div>'+
+  '<button type="button" class="builder-close" data-action="hide-builder" aria-label="Close program builder">×</button></div>'+
+  (!draftPlan?'<div class="builder-setup"><label class="input-label" for="gen-goal">Training Goal</label>'+
+  '<select id="gen-goal"><option value="muscle">Build Muscle</option><option value="strength">Gain Strength</option><option value="general">General Fitness</option></select>'+
+  '<label class="input-label" for="gen-days">Workout Days per Week</label>'+
+  '<select id="gen-days">'+dayOptions+'</select>'+
+  '<label class="input-label" for="gen-equipment">Equipment Available</label>'+
+  '<select id="gen-equipment"><option value="all">Full Gym</option><option value="dumbbells">Mostly Dumbbells</option><option value="cables">Mostly Cables</option></select>'+
+  '<div class="builder-start-actions">'+button('Generate Program Preview','generate')+
+  button('Edit Current Program as Draft','copy-current','secondary')+'</div>'+
+  '<p class="note">Generated exercises are suggestions. Training seven days per week does not require seven hard sessions; plan recovery based on your needs.</p></div>':
+  draftReview())+'</section>';
+}
+function createProgramDraft(){
+ const goal=document.getElementById('gen-goal')?.value||'muscle',days=Number(document.getElementById('gen-days')?.value),eq=document.getElementById('gen-equipment')?.value||'all';
+ if(!Number.isInteger(days)||days<1||days>7)return alert('Choose between 1 and 7 workout days.');
+ draftPlan=generatedRoutine(goal,days,eq);
+ draftExpanded=0;builderVisible=true;render();
+ document.getElementById('draft-review')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function copyCurrentToDraft(){
+ const amount=Number(document.getElementById('gen-days')?.value)||data.weekdays.length,original=cycleFor(month);
+ if(!Number.isInteger(amount)||amount<1||amount>7)return;
+ draftPlan=programDraftClone(original);
+ if(!Array.isArray(draftPlan.days)||!draftPlan.days.length)return;
+ const first=draftPlan.days.slice();
+ draftPlan.days=Array.from({length:amount},(_,i)=>{
+  const base=programDraftClone(first[i%first.length]);
+  return ['Full Body '+workoutLetter(i),base[1]];
+ });
+ draftPlan.label=draftPlan.label+' (Edited)';
+ draftExpanded=0;builderVisible=true;render();
+ document.getElementById('draft-review')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function draftInputChanged(t){
+ if(!draftPlan)return false;
+ const d=draftPlan.days[draftExpanded];
+ if(t.dataset.draftField){const field=t.dataset.draftField;if(field==='label'||field==='focus')draftPlan[field]=t.value;return true}
+ if(t.dataset.draftWorkoutName!==undefined){const i=Number(t.dataset.draftWorkoutName);if(draftPlan.days[i])draftPlan.days[i][0]=t.value;return true}
+ const fields=['draftExname','draftSets','draftReps'];
+ for(const key of fields){
+  if(t.dataset[key]===undefined)continue;
+  const e=d?.[1]?.[Number(t.dataset[key])];if(!e)return true;
+  if(key==='draftExname')e.name=t.value;
+  if(key==='draftSets')e.sets=t.value===''?'':Number(t.value);
+  if(key==='draftReps')e.reps=t.value;
+  return true;
+ }
+ return false;
+}
+function editDraftSwap(index,value){
+ if(!draftPlan||!value)return;
+ const ex=draftPlan.days[draftExpanded]?.[1]?.[index];if(!ex)return;
+ ex.name=value;render();
+}
+function draftValidate(){
+ if(!draftPlan||!Array.isArray(draftPlan.days)||draftPlan.days.length<1||draftPlan.days.length>7)return 'Draft must have between 1 and 7 workout types.';
+ if(!draftPlan.label.trim()||draftPlan.label.length>65)return 'Enter a program name up to 65 characters.';
+ for(const [i,workout] of draftPlan.days.entries()){
+  if(!workout[0].trim()||workout[0].length>65)return 'Enter a name for workout '+workoutLetter(i)+'.';
+  const exercises=workout[1];
+  if(!Array.isArray(exercises)||!exercises.length||exercises.length>12)return 'Workout '+workoutLetter(i)+' needs 1–12 exercises.';
+  for(const [j,e] of exercises.entries()){
+   if(!String(e.name||'').trim()||e.name.length>90)return 'Enter an exercise name in '+workoutLetter(i)+', exercise '+(j+1)+'.';
+   if(!Number.isInteger(Number(e.sets))||Number(e.sets)<1||Number(e.sets)>10)return 'Enter 1–10 sets in '+workoutLetter(i)+', exercise '+(j+1)+'.';
+   if(!String(e.reps||'').trim()||String(e.reps).length>30)return 'Enter a rep target in '+workoutLetter(i)+', exercise '+(j+1)+'.';
+  }
+ }
+ return '';
+}
+function weekdaysForCount(count,current=data.weekdays){
+ const order=[1,2,3,4,5,6,0];
+ const chosen=[...new Set(current.filter(v=>Number.isInteger(v)&&v>=0&&v<=6))].slice(0,count);
+ for(const d of order)if(chosen.length<count&&!chosen.includes(d))chosen.push(d);
+ return chosen.sort((a,b)=>(a+6)%7-(b+6)%7);
 }
 function activateCustomPlan(plan){
- if(Object.values(data.sessions).some(s=>!s.finished)&&!confirm('You have an unfinished workout. Start the custom plan anyway? Existing workouts will remain in history.'))return;
- if(!confirm('Activate this program on this device? Your previous workout history will remain saved.'))return;
- const old=data.program;old.history.push({number:old.number,index:old.index,started:old.started,ended:new Date().toISOString()});
- old.number+=1;old.started=new Date().toISOString();data.customPlan=plan;data.schedule={};selectedSlot=null;day=0;editing=null;save();tab='home';render();toast('Personalized program active');
+ if(Object.values(data.sessions).some(s=>!s.finished)&&!confirm('You have an unfinished workout. Activate a new program anyway? The unfinished workout will remain in History.'))return false;
+ if(!confirm('Activate "'+plan.label+'"? This replaces your active program, but your saved workout history remains.'))return false;
+ const old=data.program;
+ old.history.push({number:old.number,index:old.index,started:old.started,ended:new Date().toISOString()});
+ old.number+=1;old.started=new Date().toISOString();
+ data.customPlan=programDraftClone(plan);data.schedule={};
+ data.weekdays=weekdaysForCount(plan.days.length);
+ selectedSlot=null;selectedDate=null;day=0;editing=null;builderVisible=false;draftPlan=null;draftExpanded=0;
+ save();tab='home';render();toast('New program active');return true;
 }
-function saveBuilder(){
- const title=document.getElementById('plan-title').value.trim(),days=Number(document.getElementById('plan-days').value);
- if(!title||title.length>65)return alert('Enter a program name.');
- const entries=[];
- for(let i=0;i<days;i++){
-  const raw=document.getElementById('manual-'+i).value.trim().split('\n').filter(Boolean);if(!raw.length||raw.length>12)return alert('Workout '+String.fromCharCode(65+i)+' needs 1 to 12 exercises.');
-  const moves=[];
-  for(const line of raw){const parts=line.split('|').map(x=>x.trim()),n=parts[0],count=Number(parts[1]),reps=parts[2];if(parts.length!==3||!n||n.length>90||!Number.isInteger(count)||count<1||count>10||!reps||reps.length>30)return alert('Check workout '+String.fromCharCode(65+i)+' line: '+line+'. Use Name | sets | reps.');
-   moves.push(X(n,count,reps));}
-  entries.push(['Workout '+String.fromCharCode(65+i),moves]);
- }
- activateCustomPlan({label:title,focus:'Custom '+days+'-day training plan',days:entries});
+function applyDraftProgram(){
+ const issue=draftValidate();if(issue){alert(issue);return}
+ const sanitized=programDraftClone(draftPlan);
+ sanitized.label=sanitized.label.trim();sanitized.focus=String(sanitized.focus||'').trim();
+ for(const d of sanitized.days){d[0]=d[0].trim();for(const e of d[1]){e.name=e.name.trim();e.sets=Number(e.sets);e.reps=String(e.reps).trim();e.rest=Number(e.rest)||90}}
+ activateCustomPlan(sanitized);
 }
 
 let movementSelected='',movementFilter='';
