@@ -17,9 +17,22 @@ function respond(payload,status=200){
  return new Response(JSON.stringify(payload),{status,headers:{'Content-Type':'application/json; charset=utf-8',
  'Access-Control-Allow-Origin':ORIGIN,'Cache-Control':'no-store','Vary':'Origin','X-Content-Type-Options':'nosniff'}});
 }
+const DUMBBELL_NAMES=new Set([
+'Goblet Squat','Bodyweight Squat','Dumbbell Split Squat','Reverse Lunge',
+'Dumbbell Romanian Deadlift','Glute Bridge','Dumbbell Bench Press','Flat Dumbbell Bench Press',
+'Dumbbell Floor Press','Push-Up','Incline Dumbbell Press','Seated Dumbbell Shoulder Press',
+'Dumbbell Lateral Raise','One-Arm Dumbbell Row','Chest-Supported Dumbbell Row',
+'Dumbbell Curl','Hammer Curl','Plank','Side Plank','Dead Bug','Bird Dog',
+'Standing Dumbbell Calf Raise'
+]);
+const CABLE_NAMES=new Set([
+'Bodyweight Squat','Glute Bridge','Push-Up','Cable Fly','Seated Cable Row','Lat Pulldown',
+'Cable Face Pull','Cable Biceps Curl','Cable Triceps Pushdown','Triceps Rope Pressdown',
+'Cable Crunch','Plank','Side Plank','Dead Bug','Bird Dog','Pallof Press'
+]);
 function fit(name,eq){
- if(eq==='dumbbells')return !/barbell|machine|cable|pulldown|leg press/.test(name.toLowerCase());
- if(eq==='cables')return !/dumbbell|barbell|goblet|machine|leg press|hip thrust|leg curl/.test(name.toLowerCase());
+ if(eq==='dumbbells')return DUMBBELL_NAMES.has(name);
+ if(eq==='cables')return CABLE_NAMES.has(name);
  return true;
 }
 function validatedPlan(p){
@@ -71,6 +84,8 @@ const SYSTEM=[
  'Every exercise object must have name, sets (1-5 integer), reps (e.g. 8-12).',
  'Session has 1 day. Program has 1-7 days. Use 2-6 distinct exercises each day.',
  'Exercise names must be EXACTLY from: '+EXERCISES.join('; '),
+ 'For dumbbells equipment, exercises must be among: '+[...DUMBBELL_NAMES].join('; '),
+ 'For cables equipment, exercises must be among: '+[...CABLE_NAMES].join('; '),
  'Obey the user requested equipment and focus. Refine the previous plan when asked.',
  'Avoid medical diagnosis, rehabilitation and promises of safety. For symptoms or unclear requests, mode=clarify.',
  'Reply briefly and politely; no more than 240 characters in reply.'
