@@ -897,7 +897,7 @@ Power & Olympic Lifts|conditioning|olympic|Clean;Hang Clean;Barbell Hang Clean;C
 Mobility & Rotator Cuff|core|rotation|Cable External Rotation;External Rotation (Arm Abducted);Seated Cable External Rotation;Standing Low-Pulley External Rotation;Side-Lying Clam;Isometric Towel Pull;Rotational Band Pull;Shoulder Warm-Up Routine;Wrist Pronation;Wrist Supination;Neck Extension;Neck Flexion`;
 const movementCatalog=movementCatalogText.trim().split('\n').flatMap(line=>{
  const [category,group,pattern,list]=line.split('|');
- return list.split(';').map(raw=>{const name=raw.trim(),lower=name.toLowerCase();const specific=/wrist|pronation|supination/i.test(name)&&!/curl.*supinated|supinated.*curl/i.test(name)?'forearm':/split squat/.test(lower)?'lunge':/garhammer|hanging leg raise/.test(lower)?'core':pattern;return {name,category,group,pattern:specific};});
+ return list.split(';').map(raw=>{const name=raw.trim(),lower=name.toLowerCase();const specific=/wrist|pronation|supination/i.test(name)?'forearm':/split squat/.test(lower)?'lunge':/garhammer|hanging leg raise/.test(lower)?'core':pattern;return {name,category,group,pattern:specific};});
 });
 const allExerciseRecords=(()=>{
  const names=new Map();
@@ -957,8 +957,8 @@ function exerciseAlternatives(name,limit=8){
   const exact=source.pattern!=='other'&&identified.pattern===source.pattern;
   const sameGroup=source.group!=='other'&&identified.group===source.group;
   const sameEquipment=baseEquipment!=='any'&&movementEquipment(r.name)===baseEquipment;
-  const score=(exact?100:0)+(sameGroup?25:0)+(sameEquipment?16:0)+(r.name.toLowerCase().includes(String(name).toLowerCase().split(' ')[0])?3:0);
-  return {...r,score,reason:exact?'Same Movement Pattern':sameGroup?'Same Muscle Group':'Alternative'};
+  const score=(exact?100:0)+(sameGroup?25:0)+(sameEquipment?16:0)+(source.pattern==='biceps'&&/hammer|preacher|ez.bar|incline|concentration/i.test(r.name)?10:0)+(r.name.toLowerCase().includes(String(name).toLowerCase().split(' ')[0])?3:0);
+  return {...r,score,reason:exact?(sameEquipment?'Same Movement · Same Equipment':'Similar Movement'):sameGroup?'Same Muscle Group':'Alternative'};
  })
  .filter(r=>r.score>=25).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
