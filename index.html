@@ -520,6 +520,7 @@ function moveRecordedWorkout(id,chosen){
  const s=data.sessions[id];if(!s)return false;
  if(!validWorkoutDate(chosen)){alert('Choose a valid calendar date.');return false}
  const previous=scheduledWorkoutDate(s),oldMonth=s.month||previous.slice(0,7);
+ const previousData=JSON.stringify(data);
  if(previous===chosen){workoutDateEditId=null;render();return true}
  const occupied=Object.entries(data.sessions).filter(([key,other])=>key!==id&&other&&scheduledWorkoutDate(other)===chosen);
  if(occupied.length&&!confirm('Another workout is recorded on '+historyDateLabel(chosen)+'. Move this workout there too? Each workout will remain separate.'))return false;
@@ -531,7 +532,8 @@ function moveRecordedWorkout(id,chosen){
  const target=!occupied.length?monthSchedule(newMonth).find(a=>a.date===chosen&&a.day===s.day&&a.status!=='skipped'&&
   !Object.entries(data.sessions).some(([key,other])=>key!==id&&other&&other.slot===a.slot)):null;
  s.scheduledDate=chosen;s.month=newMonth;s.slot=target?.slot||null;
- save();workoutDateEditId=null;historyDateEditId=null;
+ if(!save()){data=JSON.parse(previousData);return false}
+ workoutDateEditId=null;historyDateEditId=null;
  if(tab==='home'||tab==='train'){
   month=newMonth;selectedDate=chosen;selectedSlot=target?.slot||null;
  }
@@ -1654,14 +1656,17 @@ function weekdaysForCount(count,current=data.weekdays){
 }
 function activateCustomPlan(plan){
  if(data.hasProgram&&Object.values(data.sessions).some(s=>!s.finished)&&!confirm('You have an unfinished workout. Activate a new program anyway? The unfinished workout will remain in History.'))return false;
+ if(hasHighPain(plan.trainerProfile)){alert('This plan reports high pain (7–10). Automatic activation is paused until individualized professional advice is obtained.');return false}
  if(!confirm(data.hasProgram?'Activate "'+plan.label+'"? This replaces your active program, but your saved workout history remains.':'Activate "'+plan.label+'" and create your first training calendar?'))return false;
+ const previousData=JSON.stringify(data);
  const old=data.program;
  if(data.hasProgram){old.history.push({number:old.number,index:old.index,started:old.started,ended:new Date().toISOString()});old.number+=1}
  old.started=new Date().toISOString();data.hasProgram=true;
  data.customPlan=programDraftClone(plan);data.trainerProfile=programDraftClone(plan.trainerProfile||trainerProfile());data.schedule={};
  data.weekdays=weekdaysForCount(plan.days.length);setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'};
  selectedSlot=null;selectedDate=null;day=0;editing=null;builderVisible=false;draftPlan=null;draftExpanded=0;
- save();tab='home';render();toast('New program active');return true;
+ if(!save()){data=JSON.parse(previousData);return false}
+ tab='home';render();toast('New program active');return true;
 }
 function applyDraftProgram(){
  const issue=draftValidate();if(issue){alert(issue);return}
