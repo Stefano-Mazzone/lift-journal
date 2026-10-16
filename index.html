@@ -1838,9 +1838,9 @@ function gymLocationMap(){
  const bbox=[lon-lonSpan,lat-span,lon+lonSpan,lat+span].map(n=>n.toFixed(6)).join(',');
  const url='https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent(bbox)+
   '&layer=mapnik&marker='+encodeURIComponent(lat.toFixed(6)+','+lon.toFixed(6));
- return '<details class="gym-location-details"><summary>Show my detected location on the map</summary>'+
-  '<p class="note">This marker shows the location supplied by your device; it is not a gym pin. Estimated GPS accuracy: '+
-  (gymAccuracy===null?'unknown':Math.round(gymAccuracy)+' metres')+'.</p>'+
+ return '<details class="gym-location-details"><summary>'+(gymLocationSource==='device'?'Show My Detected Location':'Show Selected Search Area')+'</summary>'+
+  '<p class="note">'+(gymLocationSource==='device'?'This marker shows your device location, not a gym. Estimated GPS accuracy: '+(gymAccuracy===null?'unknown':Math.round(gymAccuracy)+' metres')+'.':
+  'This marker represents the selected place'+(gymChosenAddress?.approximate?' (approximate postal area)':'')+'; it is not a verified gym listing.')+'</p>'+
   '<div class="gym-map-frame"><iframe title="Map showing your device location" src="'+url+'" loading="lazy" referrerpolicy="no-referrer"></iframe></div>'+
   '</details>';
 }
@@ -1879,8 +1879,8 @@ function gymLocator(){
  '<section class="card"><h2>Find nearby gyms</h2>'+
  '<p class="note">Location access is optional. Named gym results come from community map data and may be incomplete.</p>'+
  '<button class="btn" data-action="gym-near" '+(gymBusy?'disabled':'')+'>📍 Use my location to find gyms</button>'+
- '<form id="gym-city-form" autocomplete="off"><label class="input-label" for="gym-city">Or enter an address, street, or city</label>'+
- '<div class="gym-address-combo"><div class="barcode-row"><input class="calorie-date" id="gym-city" type="search" maxlength="180" placeholder="e.g., 123 Main St, Montreal" value="'+esc(gymPlace)+'" role="combobox" aria-autocomplete="list" aria-controls="gym-suggestions" aria-expanded="false" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search" required>'+
+ '<form id="gym-city-form" autocomplete="off"><label class="input-label" for="gym-city">Or search an address, business, city or postal code</label>'+
+ '<div class="gym-address-combo"><div class="barcode-row"><input class="calorie-date" id="gym-city" type="search" maxlength="180" placeholder="Business, street address or postal code" value="'+esc(gymPlace)+'" role="combobox" aria-autocomplete="list" aria-controls="gym-suggestions" aria-expanded="false" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="search" required>'+
  '<button type="submit" class="btn secondary" '+(gymBusy?'disabled':'')+'>Search</button></div><div id="gym-suggestions" class="gym-suggestions" role="listbox" aria-label="Suggested places" hidden></div></div>'+
  '<p class="note">Search addresses, named businesses, Canadian postal areas, or US ZIP codes. Select a suggestion to confirm the location. Postal-code results represent an approximate area, not an exact address.</p></form>'+gymExactPlaceSearchLinks()+
  '<label class="input-label" for="gym-radius">Search radius</label><select id="gym-radius">'+
@@ -1951,7 +1951,7 @@ async function gymSearch(lat,lon){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)){gymBusy=false;gymMessage='Could not determine your location. Try the Maps buttons.';render();return}
  const request=++gymSearchSequence,coords={lat,lon},radius=Number(gymRadius)||5000;
  gymCoordinates=coords;gymResults=[];gymListStatus='loading';gymBusy=true;
- gymMessage='Location detected. Searching for actual gyms in your area…';render();
+ gymMessage=(gymLocationSource==='device'?'Location detected.':'Place selected.')+' Searching for gyms around this area…';render();
  const cacheKey=lat.toFixed(3)+'|'+lon.toFixed(3)+'|'+radius;
  const saved=gymCachedLookup;
  if(saved&&saved.key===cacheKey&&Date.now()-saved.time<600000){
@@ -2193,7 +2193,7 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.21.4',APP_UPDATED_AT='2026-10-16T06:34:07.486Z';
+const APP_VERSION='1.22.0',APP_UPDATED_AT='2026-10-16T06:47:27.821Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
