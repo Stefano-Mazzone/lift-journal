@@ -301,6 +301,8 @@ h1{font-weight:750}h2{font-weight:710}
 .trainer-movement-explanation{font-size:11px;line-height:1.4;color:#a9c4b7;margin:8px 0 4px}
 @media(max-width:380px){.trainer-limits{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.setup-progress-track span{transition:none}}
+
+.exercise-picker-item .exercise-picker-info small{max-width:100%}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -500,7 +502,7 @@ function newSession(){
  const workout=cycle.days[workoutDay],id=Date.now()+'-'+Math.random().toString(36).slice(2,7);
  if(scheduled){data.schedule[scheduled.slot]={...(data.schedule[scheduled.slot]||{}),day:workoutDay}}
  data.sessions[id]={month:workoutDate.slice(0,7),day:workoutDay,cycleIndex:data.program.index,programNumber:data.program.number,
-  planSnapshot:JSON.parse(JSON.stringify(cycle)),unit:data.unit,slot:scheduled?.slot||null,
+  planSnapshot:JSON.parse(JSON.stringify(cycle)),trainerProfile:data.trainerProfile?programDraftClone(data.trainerProfile):null,unit:data.unit,slot:scheduled?.slot||null,
   scheduledDate:workoutDate,started:new Date().toISOString(),finished:null,
   exercises:workout[1].map(e=>({name:e.name,sets:Array.from({length:e.sets},()=>({reps:prescribedReps(e.reps),weight:'',done:false}))}))};
  save();editing=id;editingPast=false;selectedDate=null;selectedSlot=null;tab='train';render();scrollTo(0,0);
@@ -534,14 +536,15 @@ function exercisePickerListMarkup(){
  if(!swapPicker)return '';
  const q=swapPicker.query.trim().toLowerCase(),current=exercisePickerOriginal()||'';
  const all=catalogWithUserExercises();
- const exact=exerciseAlternatives(current,9).filter(item=>!q||item.name.toLowerCase().includes(q));
+ const exerciseProfile=swapPicker.mode==='draft'?draftPlan?.trainerProfile:data.sessions[swapPicker.sessionId]?.trainerProfile||data.trainerProfile;
+ const exact=exerciseAlternatives(current,9,exerciseProfile).filter(item=>!q||item.name.toLowerCase().includes(q));
  const filtered=all.filter(x=>(swapPicker.category==='All Exercises'||x.category===swapPicker.category)&&
    (!q||x.name.toLowerCase().includes(q)));
  const shown=filtered.slice(0,swapPicker.limit);
  const itemButton=(r,kind)=>'<button type="button" class="exercise-picker-item" data-picker-select="'+esc(r.name)+'" aria-label="Choose '+esc(r.name)+'">'+
   '<span class="exercise-picker-icon" aria-hidden="true">'+(kind==='recommended'?'↗':'•')+'</span>'+
   '<span class="exercise-picker-info"><strong>'+esc(r.name)+'</strong><small>'+
-  esc(kind==='recommended'?r.reason+' · '+r.category:r.category)+'</small></span>'+
+  esc(kind==='recommended'?r.reason+' · '+r.category:(trainerCaution(r.name,exerciseProfile).length?'Review Limitation: '+trainerCaution(r.name,exerciseProfile).join(', '):r.category))+'</small></span>'+
   '<span class="exercise-picker-choose" aria-hidden="true">Select</span></button>';
  const recommendations=swapPicker.category==='All Exercises'?
   '<section class="exercise-picker-recommended"><h4>Recommended Alternatives</h4>'+
@@ -590,6 +593,9 @@ function pickExercise(name){
   const s=data.sessions[sessionId],ex=s?.exercises?.[index];
   if(!s||editing!==sessionId||!ex||s.finished&&!editingPast)return;
   if(current!==normalized){
+   const profile=s.trainerProfile||data.trainerProfile;
+   const concerns=trainerCaution(normalized,profile);
+   if(concerns.length&&profile?.limitStatus==='current'&&!confirm('This exercise may involve an area you marked as currently painful or unresolved ('+concerns.join(', ')+'). It is not a medical safety recommendation. Have you reviewed suitability with your healthcare professional, and do you still want to choose it?'))return;
    const used=ex.sets.some(v=>v.done||(v.weight!==null&&v.weight!==undefined&&String(v.weight).trim()!=='')); 
    if(used&&!confirm('This exercise already has recorded sets. Swap to '+normalized+' and keep its logged weights and reps? These values will appear under the replacement movement in History.'))return;
    if(!ex.originalName)ex.originalName=ex.name;
@@ -597,6 +603,8 @@ function pickExercise(name){
   }
  }else if(mode==='draft'){
   const ex=draftPlan?.days?.[draftDay]?.[1]?.[index];if(!ex)return;
+  const concerns=trainerCaution(normalized,draftPlan?.trainerProfile);
+  if(concerns.length&&draftPlan?.trainerProfile?.limitStatus==='current'&&!confirm('This replacement may involve a currently painful or unresolved area ('+concerns.join(', ')+'). It may not be appropriate. Do you still want to include it in this draft?'))return;
   ex.name=normalized;
  }
  swapPicker=null;render();
@@ -1065,22 +1073,28 @@ function movementEquipment(name){
  if(/bodyweight|push.up|pull.up|chin.up|plank/.test(v))return 'bodyweight';
  return 'any';
 }
-function exerciseAlternatives(name,limit=8){
- const source=identifyExercise(name);
- const baseEquipment=movementEquipment(name);
+function exerciseAlternatives(name,limit=8,profile=data.trainerProfile){
+ const source=identifyExercise(name),baseEquipment=movementEquipment(name);
+ const restricted=Array.isArray(profile?.limits)?profile.limits:[];
  return catalogWithUserExercises().filter(r=>r.name.toLowerCase()!==String(name).toLowerCase())
  .map(r=>{
   const identified=r.pattern==='other'?identifyExercise(r.name):r;
   const exact=source.pattern!=='other'&&identified.pattern===source.pattern;
   const sameGroup=source.group!=='other'&&identified.group===source.group;
   const sameEquipment=baseEquipment!=='any'&&movementEquipment(r.name)===baseEquipment;
-  const score=(exact?100:0)+(sameGroup?25:0)+(sameEquipment?16:0)+(source.pattern==='biceps'&&/hammer|preacher|ez.bar|incline|concentration/i.test(r.name)?10:0)+(r.name.toLowerCase().includes(String(name).toLowerCase().split(' ')[0])?3:0);
-  return {...r,score,reason:exact?(sameEquipment?'Same Movement · Same Equipment':'Similar Movement'):sameGroup?'Same Muscle Group':'Alternative'};
+  const equipmentFit=trainerEquipmentFit(r.name,profile?.equipment||'all');
+  const cautions=restricted.filter(area=>trainerAreaRisk(r.name,area));
+  const currentConcern=profile?.limitStatus==='current'&&cautions.length>0;
+  const score=(exact?100:0)+(sameGroup?25:0)+(sameEquipment?16:0)+(equipmentFit?12:-60)+
+    (source.pattern==='biceps'&&/hammer|preacher|ez.bar|incline|concentration/i.test(r.name)?10:0)-
+    (cautions.length?(profile?.limitStatus==='current'?250:30):0);
+  const reason=exact?(sameEquipment?'Similar Movement · Same Equipment':'Same Movement Pattern'):
+   sameGroup?'Same Muscle Group':'Other Exercise';
+  return {...r,score,reason,equipmentFit,cautions,currentConcern};
  })
- .filter(r=>r.score>=25).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
+ .filter(r=>r.score>=25&&!r.currentConcern&&r.equipmentFit)
+ .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
-
-
 const TRAINER_LIMIT_AREAS=[['knee','Knee'],['hip','Hip / Groin'],['ankle','Ankle / Foot'],['back','Lower Back'],['shoulder','Shoulder'],['elbow','Elbow / Wrist'],['neck','Neck']];
 function trainerDefaultPrefs(){return {goal:'muscle',experience:'beginner',days:3,minutes:45,equipment:'all',limits:[],limitStatus:'past',medical:'unanswered',notes:''}}
 function trainerProfile(p=setupPrefs){return {goal:p.goal,experience:p.experience,days:p.days,minutes:p.minutes,equipment:p.equipment,
@@ -1130,9 +1144,11 @@ function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
  const novice=['beginner','returning'].includes(profile.experience),sets=novice?2:profile.experience==='experienced'?4:3;
  const reps=goal==='strength'?(novice?'6–10':'5–8'):goal==='general'?'10–15':'8–12';
  const maxExercises=profile.minutes<=25?3:profile.minutes<=35?4:profile.minutes<=50?5:6;
- const hardDays=Math.min(days,4),list=[],notes=[];
+ const lighter=days<5?[]:days===5?[2]:days===6?[2,5]:[1,3,5];
+ if(novice&&days>=5&&!lighter.includes(days-1))lighter.push(days-1);
+ const list=[],notes=[];
  for(let i=0;i<days;i++){
-  const light=days>=5&&i>=hardDays,used=new Set(),workout=[];
+  const light=lighter.includes(i),used=new Set(),workout=[];
   const pools=light?['recovery','core','accessory']:i%2===0?
    ['squat','push','pull','hinge','arms','core']:
    ['hinge','pull','push','squat','accessory','core'];
@@ -1149,7 +1165,7 @@ function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
  }
  if(profile.limitStatus==='current'&&profile.limits.length)notes.push('Current pain or unresolved limitations: associated movements were filtered, but remaining exercises are not guaranteed safe or pain-free. Seek individualized assessment.');
  else if(profile.limits.length)notes.push('Past limitations are noted. Review each exercise and avoid movements that provoke symptoms.');
- if(days>4)notes.push('Includes '+(days-hardDays)+' lighter sessions rather than prescribing hard strength training seven days per week.');
+ if(days>4)notes.push('Includes '+lighter.length+' lighter / recovery-focused sessions spaced through the week rather than hard strength training every day.');
  if(novice)notes.push('Lower starting volume for a new or returning trainee, with gradual progression.');
  notes.push('General exercise guidance only, not diagnosis or rehabilitation.');
  return {label:'Personalized '+(goal==='muscle'?'Muscle Builder':goal==='strength'?'Strength Plan':'Fitness Plan'),
