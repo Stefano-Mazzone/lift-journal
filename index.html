@@ -243,6 +243,55 @@ function scheduledWorkoutDate(s){
 }
 function workoutChartDate(s){return scheduledWorkoutDate(s)+'T12:00:00'}
 
+function validWorkoutDate(chosen){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(chosen||'')))return false;
+ const parsed=new Date(chosen+'T12:00:00');
+ return !Number.isNaN(parsed.getTime())&&isoDate(parsed)===chosen;
+}
+function savedWorkoutDateEditor(id){
+ const s=data.sessions[id];
+ if(!s||workoutDateEditId!==id)return '';
+ return '<div class="saved-workout-date-editor" id="saved-workout-date-editor">'+
+  '<label class="input-label" for="saved-workout-date-input">Workout Date</label>'+
+  '<input type="date" id="saved-workout-date-input" value="'+esc(scheduledWorkoutDate(s))+'">'+
+  '<p class="note">Change this '+(s.finished?'completed':'in-progress')+
+  ' workout date. Your weights, reps, sets and status will stay the same.</p>'+
+  '<div class="saved-workout-date-actions">'+button('Save New Date','save-workout-date')+
+  '<button type="button" class="btn secondary" data-action="cancel-workout-date">Cancel</button></div></div>';
+}
+function openSavedWorkoutDateEditor(id){
+ if(!data.sessions[id])return;
+ workoutDateEditId=workoutDateEditId===id?null:id;
+ render();
+ if(workoutDateEditId)document.getElementById('saved-workout-date-editor')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function moveRecordedWorkout(id,chosen){
+ const s=data.sessions[id];if(!s)return false;
+ if(!validWorkoutDate(chosen)){alert('Choose a valid calendar date.');return false}
+ const previous=scheduledWorkoutDate(s),oldMonth=s.month||previous.slice(0,7);
+ if(previous===chosen){workoutDateEditId=null;render();return true}
+ const occupied=Object.entries(data.sessions).filter(([key,other])=>key!==id&&other&&scheduledWorkoutDate(other)===chosen);
+ if(occupied.length&&!confirm('Another workout is recorded on '+historyDateLabel(chosen)+'. Move this workout there too? Each workout will remain separate.'))return false;
+ // Do not allow a date change to reinterpret a legacy workout using a new plan.
+ if(!s.planSnapshot){try{s.planSnapshot=JSON.parse(JSON.stringify(cycleForSession(s)))}catch(e){}}
+ const oldSlot=s.slot||monthSchedule(oldMonth).find(a=>a.date===previous&&a.day===s.day)?.slot;
+ if(oldSlot)data.schedule[oldSlot]={...(data.schedule[oldSlot]||{}),status:'relocated'};
+ const newMonth=chosen.slice(0,7);
+ const target=monthSchedule(newMonth).find(a=>a.date===chosen&&a.day===s.day&&a.status!=='skipped'&&
+  !Object.entries(data.sessions).some(([key,other])=>key!==id&&other&&other.slot===a.slot));
+ s.scheduledDate=chosen;s.month=newMonth;s.slot=target?.slot||null;
+ save();workoutDateEditId=null;historyDateEditId=null;
+ if(tab==='home'||(tab==='train'&&editing!==id)){
+  month=newMonth;selectedDate=chosen;selectedSlot=target?.slot||null;
+ }
+ render();toast('Workout moved to '+historyDateLabel(chosen));return true;
+}
+function saveRecordedWorkoutDate(){
+ const date=document.getElementById('saved-workout-date-input')?.value;
+ if(workoutDateEditId&&date)moveRecordedWorkout(workoutDateEditId,date);
+}
+
+
 function missingRepsFromProgram(s){
  const plan=cycleForSession(s),dayPlan=plan?.days?.[s.day]?.[1];
  if(!Array.isArray(dayPlan)||!Array.isArray(s.exercises))return [];
@@ -381,7 +430,7 @@ function weeklySchedulePanel(){
 function dateLocal(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
 function monthSchedule(m=month){const [y,mo]=m.split('-').map(Number),last=new Date(y,mo,0).getDate(),out=[];
 for(let d=1;d<=last;d++){let date=new Date(y,mo-1,d),weekday=date.getDay(),idx=data.weekdays.indexOf(weekday);if(idx<0)continue;
-let mon=new Date(date);mon.setDate(date.getDate()-((weekday+6)%7));const slot=m+'_'+isoDate(mon)+'_'+idx,override=data.schedule[slot]||{};const count=cycleFor(m).days.length;if(!count)continue;
+let mon=new Date(date);mon.setDate(date.getDate()-((weekday+6)%7));const slot=m+'_'+isoDate(mon)+'_'+idx,override=data.schedule[slot]||{};const count=cycleFor(m).days.length;if(!count||override.status==='relocated')continue;
 out.push({slot,day:Number.isInteger(override.day)&&override.day>=0&&override.day<count?override.day:idx%count,originalDay:idx,original:isoDate(date),date:override.date||isoDate(date),status:override.status||'planned'});}
 return out.sort((a,b)=>a.date.localeCompare(b.date)||a.day-b.day)}
 function fullMonthCalendar(ss,sessions){
@@ -424,7 +473,10 @@ function selectedWorkoutPicker(ss,sessions){
    '<p class="note">A workout already exists on this date. Open it instead of creating a duplicate.</p>'+
    existing.map(([id,s])=>'<div class="workout-picker-saved-row"><div><strong>'+esc(cycleForSession(s)?.days?.[s.day]?.[0]||'Workout')+
    '</strong><div class="note">'+(s.finished?'Completed':'In progress')+'</div></div>'+
-   '<button class="btn secondary" data-open="'+esc(id)+'">'+(s.finished?'View':'Resume')+'</button></div>').join('')+'</section>';
+   '<div class="workout-picker-saved-actions"><button class="btn secondary" data-open="'+esc(id)+'">'+(s.finished?'View':'Resume')+'</button>'+
+   '<button class="btn secondary" data-edit-session="'+esc(id)+'">Edit</button>'+
+   '<button class="btn secondary" data-workout-date="'+esc(id)+'">Move Date</button></div></div>'+
+   savedWorkoutDateEditor(id)).join('')+'</section>';
  }
  if(slot?.status==='skipped')return '<section class="workout-day-picker" id="selected-workout-picker"><span class="workout-picker-step">SKIPPED WORKOUT</span>'+headline+
   '<p class="note">Restore this day before starting its workout.</p>'+
@@ -462,7 +514,9 @@ function scheduleView(){
   const logged=sessionForScheduledDay(a,sessions),status=logged?.finished?'Completed':logged?'In progress':a.status==='skipped'?'Skipped':'Planned';
   return '<div class="schedule-row"><div><strong>'+new Date(a.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+
    ' · Workout '+esc('ABCDEFG'[a.day]||'?')+'</strong><div class="note">'+status+'</div></div>'+
-   '<div class="row">'+(logged?'<button class="btn tiny secondary" data-open="'+esc(logged.key)+'">'+(logged.finished?'View':'Resume')+'</button>':
+   '<div class="row">'+(logged?'<button class="btn tiny secondary" data-open="'+esc(logged.key)+'">'+(logged.finished?'View':'Resume')+'</button>'+
+   '<button class="btn tiny secondary" data-edit-session="'+esc(logged.key)+'">Edit</button>'+
+   '<button class="btn tiny secondary" data-workout-date="'+esc(logged.key)+'">Move Date</button>':
    '<button class="btn tiny secondary" data-slot="'+esc(a.slot)+'" data-plan-day="'+a.day+'">Choose</button>'+
    '<button class="btn tiny '+(a.status==='skipped'?'secondary':'danger')+'" data-skip="'+esc(a.slot)+'">'+(a.status==='skipped'?'Restore':'Skip')+'</button>')+'</div></div>';
  }).join('');
@@ -595,7 +649,7 @@ function tonnageView(){
  '<p class="tonnage-note">'+(drafts?drafts+' workout(s) are still in progress: their logged volume is shown as provisional. ':'')+'Filled-in weights and reps count, even without checking Done. Skipped exercises are excluded. Pounds and kilograms are displayed separately. Up to 12 recent periods are shown.</p></section>';
 }
 
-let historyDateEditId=null;
+let historyDateEditId=null,workoutDateEditId=null;
 function historyDateLabel(iso){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(iso)))return 'Unknown date';
  return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
@@ -624,45 +678,18 @@ function storedSkippedSessions(){
  }
  return result.sort((a,b)=>b.date.localeCompare(a.date)||a.day-b.day);
 }
-function changeHistoryWorkoutDate(){
- const id=historyDateEditId,s=id&&data.sessions[id],input=document.getElementById('history-date-input');
- if(!s||!input)return;
- const chosen=input.value;
- if(!/^\d{4}-\d{2}-\d{2}$/.test(chosen)){alert('Choose a valid workout date.');return}
- const parsed=new Date(chosen+'T12:00:00');
- if(Number.isNaN(parsed.getTime())||isoDate(parsed)!==chosen){alert('Choose a real calendar date.');return}
- const original=scheduledWorkoutDate(s);
- if(chosen===original){historyDateEditId=null;render();return}
- const newMonth=chosen.slice(0,7);
- const candidate=monthSchedule(newMonth).find(a=>a.date===chosen&&a.day===s.day);
- const other=Object.entries(data.sessions).find(([key,existing])=>key!==id&&existing&&
-  (existing.slot&&candidate&&existing.slot===candidate.slot||
-   existing.day===s.day&&scheduledWorkoutDate(existing)===chosen));
- if(other&&!confirm('There is already a workout recorded for this date and workout type. Set both to the same date anyway?'))return;
- // Preserve the historical plan when assigning a session to a different month.
- if(!s.planSnapshot)try{s.planSnapshot=JSON.parse(JSON.stringify(cycleForSession(s)))}catch(e){}
- s.month=newMonth;
- s.scheduledDate=chosen;
- s.slot=candidate&&!other?candidate.slot:null;
- save();
- historyDateEditId=null;
- render();
- toast('Workout date updated to '+historyDateLabel(chosen));
-}
+function changeHistoryWorkoutDate(){saveRecordedWorkoutDate()}
 function historySessionCard(s){
  const when=scheduledWorkoutDate(s),title=cycleForSession(s)?.days?.[s.day]?.[0]||'Workout '+('ABCDEFG'[s.day]||'');
- const logged=workoutWeightLogs(s).length,isEditing=historyDateEditId===s.key;
- const item='<div class="history-status-item"><div class="history-status-top"><div><strong>'+esc(title)+'</strong>'+
+ const logged=workoutWeightLogs(s).length;
+ return '<div class="history-status-item"><div class="history-status-top"><div><strong>'+esc(title)+'</strong>'+
   '<div class="note">'+esc(historyDateLabel(when))+' · Program '+esc(s.programNumber||'legacy')+'</div>'+
   '<div class="note">'+logged+' weighted set'+(logged===1?'':'s')+(s.finished&&logged===0?' · No weighted sets yet':'')+'</div></div>'+
-  '<span class="history-state-tag '+(s.finished?'is-complete':'is-progress')+'">'+(s.finished?'Completed':'In progress')+'</span></div>'+
+  '<span class="history-state-tag '+(s.finished?'is-complete':'is-progress')+'">'+(s.finished?'Completed':'In Progress')+'</span></div>'+
   '<div class="history-actions"><button class="btn tiny secondary" data-open="'+esc(s.key)+'">'+(s.finished?'View':'Resume')+'</button>'+
-  (s.finished?'<button class="btn tiny secondary" data-edit-session="'+esc(s.key)+'">Edit</button>':'')+
-  '<button class="btn tiny secondary" data-history-date="'+esc(s.key)+'">'+(isEditing?'Cancel date':'Change date')+'</button></div>'+
-  (isEditing?'<div class="history-date-editor"><label class="input-label" for="history-date-input">Actual workout date</label>'+
-  '<input id="history-date-input" type="date" value="'+esc(when)+'"><p class="note">Only the workout date changes. Your sets, reps, weights and completed status stay the same.</p>'+
-  '<button class="btn tiny" data-action="save-history-date">Save date</button></div>':'')+'</div>';
- return item;
+  '<button class="btn tiny secondary" data-edit-session="'+esc(s.key)+'">Edit</button>'+
+  '<button class="btn tiny secondary" data-workout-date="'+esc(s.key)+'">Move Date</button></div>'+
+  savedWorkoutDateEditor(s.key)+'</div>';
 }
 function historySkippedCard(s){
  return '<div class="history-status-item"><strong>Workout '+esc('ABCDEFG'[s.day]||'?')+'</strong>'+
