@@ -480,7 +480,7 @@ async function gymCity(q){
  }catch(err){gymBusy=false;gymMessage=err.message+'. Try a more specific city and region.';render()}
 }
 
-const APP_VERSION='1.16.0',APP_UPDATED_AT='2026-10-16T12:00:00Z';
+const APP_VERSION='1.16.0',APP_UPDATED_AT='2026-10-16T04:08:42Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){return '<section class="card"><h2>Version & Updates</h2><p><strong>Running:</strong> '+esc(APP_VERSION)+'</p><p><strong>Running update time:</strong> '+esc(appLocalStamp(APP_UPDATED_AT))+'</p><p><strong>Latest published:</strong> '+esc(latestVersion||'Not checked')+'</p><p><strong>Latest update time:</strong> '+esc(latestStamp?appLocalStamp(latestStamp):'Not checked')+'</p><p><strong>Status:</strong> '+esc(versionStatus)+'</p><p class="note">Times automatically use your device timezone. Checking requires internet. Reloading keeps data stored on this device.</p>'+button('Check for updates','check-version','secondary')+button('Reload app','reload-app','secondary')+'</section>'}
