@@ -377,7 +377,7 @@ if(!Array.isArray(data.weekdays)||!data.weekdays.length||data.weekdays.length>7|
 // Older users had an active default program without a separate setup flag.
 // Preserve earlier actual sessions and custom programs, but don't treat the\n// old automatically provided sample template as a consciously created plan.
 if(typeof data.hasProgram!=='boolean')data.hasProgram=!!(data.customPlan||Object.keys(data.sessions||{}).length||Object.keys(data.schedule||{}).length||data.program.number>1||data.program.history.length);
-let month=initialMonth,tab='home',day=0,editing=null,selectedSlot=null,selectedDate=null,editingPast=false,builderVisible=false,draftPlan=null,draftExpanded=0,swapPicker=null,setupStep=0,setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'},favoriteOnly=false,lastFavorite=null,dailyChoice={mode:'plan',focus:'full',effort:'normal',minutes:45};const el=document.getElementById('app');
+let month=initialMonth,tab='home',day=0,editing=null,selectedSlot=null,selectedDate=null,editingPast=false,builderVisible=false,draftPlan=null,draftExpanded=0,swapPicker=null,setupStep=0,setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'},favoriteOnly=false,lastFavorite=null,dailyChoice={mode:'plan',focus:'full',effort:'normal',minutes:45},dailyCheck={levels:{},medical:'unanswered',confirmed:false};const el=document.getElementById('app');
 
 function updateStorageWarning(){
  const box=document.getElementById('storage-warning');
@@ -598,6 +598,7 @@ function reopenWorkout(){
  s.previousFinishedAt=s.finished;s.finished=null;editingPast=false;save();render();toast('Workout reopened');
 }
 function newSession(){
+ if(!dailyCheck.confirmed||dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Complete today’s pain and readiness check first. High pain or warning symptoms need individualized professional advice.');return}
  const workoutDate=selectedDate&&selectedDate.startsWith(month+'-')?selectedDate:isoDate(new Date());
  const scheduled=selectedSlot?monthSchedule().find(a=>a.slot===selectedSlot&&a.date===workoutDate):null;
  const already=Object.entries(data.sessions).find(([id,s])=>s&&scheduledWorkoutDate(s)===workoutDate);
@@ -610,7 +611,7 @@ function newSession(){
  const oldSchedule=scheduled?data.schedule[scheduled.slot]:undefined;
  if(scheduled){data.schedule[scheduled.slot]={...(data.schedule[scheduled.slot]||{}),day:workoutDay}}
  data.sessions[id]={month:workoutDate.slice(0,7),day:workoutDay,cycleIndex:data.program.index,programNumber:data.program.number,
-  planSnapshot:snapshot,customizedToday:dailyChoice.mode!=='plan',workoutSource:dailyChoice.mode,trainerProfile:data.trainerProfile?programDraftClone(data.trainerProfile):null,unit:data.unit,slot:scheduled?.slot||null,
+  planSnapshot:snapshot,customizedToday:dailyChoice.mode!=='plan',workoutSource:dailyChoice.mode,trainerProfile:programDraftClone(dailyProfile()),dayCheckIn:{painLevels:programDraftClone(dailyCheck.levels),readiness:'no',checkedAt:new Date().toISOString()},unit:data.unit,slot:scheduled?.slot||null,
   scheduledDate:workoutDate,started:new Date().toISOString(),finished:null,
   exercises:workout[1].map(e=>({name:e.name,sets:Array.from({length:e.sets},()=>({reps:prescribedReps(e.reps),weight:'',done:false}))}))};
  if(!save()){
@@ -844,7 +845,39 @@ function fullMonthCalendar(ss,sessions){
 }
 
 
-function resetDailyChoice(){dailyChoice={mode:'plan',focus:'full',effort:'normal',minutes:data.trainerProfile?.minutes||45}}
+
+function resetDailyChoice(){
+ dailyChoice={mode:'plan',focus:'full',effort:'normal',minutes:data.trainerProfile?.minutes||45};
+ dailyCheck={levels:painLevelsFor(data.trainerProfile),medical:'unanswered',confirmed:false};
+}
+function dailyProfile(){
+ const base={...trainerDefaultPrefs(),...(data.trainerProfile||{})};
+ return painProfile({...base,painLevels:{...dailyCheck.levels}});
+}
+function dailyPainCheckMarkup(){
+ const profile=dailyProfile(),scores=Object.values(profile.painLevels);
+ const highest=Math.max(0,...scores),ready=dailyCheck.confirmed&&dailyCheck.medical==='no'&&highest<7;
+ const notice=highest>=7?
+  'High pain (7–10) was reported. Automatic workout creation is paused. Seek individualized professional advice.':
+  scores.some(x=>x>0)?
+  'Exercises involving areas you reported as painful will be excluded from today’s suggested session. This does not establish that other exercises are safe.':
+  'You reported no current pain in selected areas. Stop if symptoms develop or worsen.';
+ return '<section class="daily-pain-check">'+
+  '<div class="daily-pain-check-heading"><span class="workout-picker-step">STEP 2 · TODAY’S READINESS</span>'+
+  '<h4>Quick Pain & Readiness Check</h4></div>'+
+  '<p class="note">Review this before each new workout. Select each affected area and rate its current pain. Your answers may differ from when you created your program.</p>'+
+  painFieldsMarkup({painLevels:dailyCheck.levels},'daily')+
+  '<label class="input-label" for="daily-medical">Any chest discomfort with activity, fainting, unusual breathlessness at mild effort, or advice from a clinician to avoid exercise today?</label>'+
+  trainerOptions('daily-medical',[['unanswered','Select an Answer'],['no','No'],['yes','Yes'],['unsure','Not Sure']],dailyCheck.medical)+
+  '<p class="trainer-safety-hint">'+esc(notice)+'</p>'+
+  (dailyCheck.medical==='yes'||dailyCheck.medical==='unsure'?
+   '<p class="trainer-safety-hint">Do not start the workout. Get qualified medical advice, and seek urgent care for emergency symptoms.</p>':'')+
+  '<div class="daily-confirm-row"><button type="button" class="btn secondary" data-action="daily-confirm"'+
+  (dailyCheck.medical!=='no'||highest>=7?' disabled':'')+'>'+
+  (ready?'✓ Check-In Confirmed':'Confirm Today’s Check-In')+'</button>'+
+  '<span class="note">'+(ready?'Review exercises below':'Required before starting')+'</span></div></section>';
+}
+
 function dailyFocusMatches(name,focus){
  const info=identifyExercise(name);
  if(focus==='upper')return info.group==='push'||info.group==='pull';
@@ -866,8 +899,10 @@ function dailyFavoriteNames(focus,profile){
 }
 function dailyWorkoutPlan(){
  const c=cycleFor(month),chosen=Math.max(0,Math.min(day,c.days.length-1));
- if(dailyChoice.mode==='plan')return c.days[chosen];
- const profile={...trainerDefaultPrefs(),...(data.trainerProfile||{})};
+ const profile=dailyProfile();
+ if(dailyChoice.mode==='plan'){
+  const workout=c.days[chosen];return [workout[0],workout[1].filter(ex=>trainerCanUse(ex.name,profile))];
+ }
  const max=dailyChoice.minutes<=20?3:dailyChoice.minutes<=30?4:dailyChoice.minutes<=45?5:6;
  const sets=dailyChoice.effort==='light'?1:['beginner','returning'].includes(profile.experience)?2:profile.experience==='experienced'?4:3;
  const reps=dailyChoice.effort==='light'?'10–15':profile.goal==='strength'?'6–10':'8–12';
