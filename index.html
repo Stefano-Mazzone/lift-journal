@@ -1166,7 +1166,7 @@ function gymLocationMap(){
   '</details>';
 }
 function gymListItem(g){
- const {google,apple}=gymMapLinks({lat:g.lat,lon:g.lon});
+ const apple='https://maps.apple.com/?daddr='+encodeURIComponent(g.lat+','+g.lon),google='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(g.lat+','+g.lon);
  const title=g.name||'Unnamed fitness centre';
  const street=String(g.address||'Address not listed');
  const links=gymIsAndroid()?[['Google Maps',google],['Apple Maps',apple]]:[['Apple Maps',apple],['Google Maps',google]];
