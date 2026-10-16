@@ -1157,6 +1157,8 @@ function coachInterpretRequest(raw){
  if(/\b(chest pain|chest discomfort|faint|fainting|dizzy|dizziness|shortness of breath|can't breathe|injur(?:y|ed)|pain|sprain|strain|recovering from surgery)\b/.test(q)){
   return {reply:'You mentioned pain, an injury, or a possible warning symptom. I cannot determine which exercises are safe from a chat. Please complete the app’s readiness check, and seek individualized medical advice where appropriate. I won’t create a workout from this request.'};
  }
+ if(/\b(upper[\s/\-]?lower|push[\s/\-]?pull[\s/\-]?legs|ppl|bro split)\b/.test(q))
+  return {reply:'The current automatic planner builds full-body programs, not a specific upper/lower or push/pull/legs split. You can customize those days manually in the Program Builder.'};
  const none=/\b(no equipment|without equipment|bodyweight only|no weights|just bodyweight)\b/.test(q);
  if(none)return {reply:'A strict no-equipment workout is not yet supported by this planner. I won’t suggest a gym-based plan and pretend it fits. You can still create a custom plan in the program builder.'};
  const onlyDumbbells=/\b(dumbbells?|free weights?|home gym|at home|dbs?)\b/.test(q);
@@ -2999,7 +3001,7 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.24.4',APP_UPDATED_AT='2026-10-16T21:54:35.987Z';
+const APP_VERSION='1.25.0',APP_UPDATED_AT='2026-10-16T22:37:41.402Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
