@@ -2122,7 +2122,7 @@ function chooseFood(i){
 }
 function scannedFoodUI(){
  const f=scannedFood;
- return '<section class="card"><h2>Scan packaged food</h2><p class="muted">Look up nutrition from Open Food Facts. Review the label: community entries may contain mistakes.</p><div class="barcode-row"><input class="calorie-date" id="barcode-input" inputmode="numeric" placeholder="Enter barcode number" aria-label="Product barcode"><button class="btn secondary" data-action="barcode-lookup">Look up</button></div><button class="btn secondary" style="margin-top:10px" data-action="barcode-camera">Scan with camera</button><button class="btn tiny secondary" style="margin-top:10px" data-action="barcode-stop">Stop camera</button><label class="btn secondary" style="display:inline-block;margin-top:10px;cursor:pointer">Take barcode photo<input id="barcode-photo" class="hide" type="file" accept="image/*" capture="environment"></label><label class="btn secondary" style="display:inline-block;margin-top:10px;margin-left:8px;cursor:pointer">Choose photo<input id="barcode-photo-picker" class="hide" type="file" accept="image/*"></label><video id="barcode-video" autoplay playsinline muted style="display:none"></video><div class="note" id="barcode-status">'+esc(barcodeMessage)+'</div>'+
+ return '<section class="card"><h2>Scan packaged food</h2><p class="muted">Look up nutrition from Open Food Facts. Review the label: community entries may contain mistakes.</p><div class="barcode-row"><input class="calorie-date" id="barcode-input" inputmode="numeric" autocomplete="off" placeholder="Enter barcode number" aria-label="Product barcode" value="'+esc(barcodeInputValue)+'"><button class="btn secondary" data-action="barcode-lookup">Look up</button></div><button class="btn secondary" style="margin-top:10px" data-action="barcode-camera">Scan with camera</button><button class="btn tiny secondary" style="margin-top:10px" data-action="barcode-stop">Stop camera</button><label class="btn secondary" style="display:inline-block;margin-top:10px;cursor:pointer">Take barcode photo<input id="barcode-photo" class="hide" type="file" accept="image/*" capture="environment"></label><label class="btn secondary" style="display:inline-block;margin-top:10px;margin-left:8px;cursor:pointer">Choose photo<input id="barcode-photo-picker" class="hide" type="file" accept="image/*"></label><video id="barcode-video" autoplay playsinline muted style="display:none"></video><div class="note" id="barcode-status">'+esc(barcodeMessage)+'</div>'+
  (f?'<div class="barcode-preview"><h3>'+esc(f.name)+'</h3><p class="note">'+esc(f.brand||'')+' · Barcode '+esc(f.code)+'</p><label for="portion-grams">Amount eaten (grams)</label><input type="number" id="portion-grams" inputmode="decimal" min="1" max="10000" step="any" value="'+esc(f.portion)+'"><p class="note">Suggested serving: '+esc(f.serving||'Not specified')+'. Adjust grams to match what you actually ate.</p>'+(f.cup?'<label for="portion-cups">Approximate cups</label><input id="portion-cups" type="number" min="0.01" max="30" step="0.25" value="'+formatWeight(f.portion/f.cup)+'">':'')+'<div id="portion-facts"></div><button class="btn" data-action="add-scanned" style="margin-top:12px;width:100%">Add portion to today</button></div>':'')+'</section>';
 }
 function portionFacts(){
@@ -2131,22 +2131,38 @@ function portionFacts(){
  const show=(n)=>n===null?'—':formatWeight(n*mul);
  container.innerHTML='<div class="macro-row"><div><strong>'+show(f.kcal)+'</strong><div class="note">kcal</div></div><div><strong>'+show(f.protein)+'</strong><div class="note">Protein g</div></div><div><strong>'+show(f.carbs)+'</strong><div class="note">Carbs g</div></div><div><strong>'+show(f.fat)+'</strong><div class="note">Fat g</div></div><div><strong>'+show(f.sugars)+'</strong><div class="note">Sugar g</div></div><div><strong>'+show(f.fiber)+'</strong><div class="note">Fiber g</div></div></div>';
 }
+let barcodeLookupId=0,barcodeInputValue='';
 async function lookupBarcode(code){
- code=String(code).replace(/\s+/g,'');if(!/^\d{8,14}$/.test(code)){barcodeMessage='Enter a valid 8–14 digit barcode.';render();return}
- barcodeMessage='Looking up barcode…';scannedFood=null;render();
+ code=String(code||'').replace(/\s+/g,'');
+ barcodeInputValue=code;
+ if(!/^\d{8,14}$/.test(code)){barcodeMessage='Enter an 8–14 digit barcode.';render();return}
+ const requestId=++barcodeLookupId;
+ barcodeMessage='Looking up '+code+'…';scannedFood=null;render();
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
  try{
-  const response=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=code,product_name,brands,serving_size,nutriments',{headers:{'Accept':'application/json'}});
-  if(!response.ok)throw Error('Service returned '+response.status);
-  const payload=await response.json(),p=payload.product;if(payload.status!==1||!p)throw Error('Product not found in Open Food Facts');
+  const candidates=[code];
+  if(code.length===12)candidates.push('0'+code);
+  if(code.length===13&&code.startsWith('0'))candidates.push(code.slice(1));
+  let p=null;
+  for(const number of candidates){
+   const response=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(number)+'.json?fields=code,product_name,brands,serving_size,nutriments',{headers:{Accept:'application/json'},signal:controller.signal});
+   if(!response.ok)throw Error('Food service returned '+response.status);
+   const result=await response.json();
+   if(result.status===1&&result.product){p=result.product;break}
+  }
+  if(requestId!==barcodeLookupId||tab!=='calories')return;
+  if(!p)throw Error('Product not found in Open Food Facts');
   const n=p.nutriments||{};
-  const num=(key)=>Number.isFinite(Number(n[key]))&&n[key]!==null&&n[key]!==undefined&&n[key]!==''?Number(n[key]):null;
+  const num=key=>n[key]==null||n[key]===''||!Number.isFinite(Number(n[key]))?null:Number(n[key]);
   const kcal=num('energy-kcal_100g'),serving=String(p.serving_size||''),matched=serving.match(/(\d+(?:[.,]\d+)?)\s*g\b/i);
   scannedFood={code,name:String(p.product_name||'Unnamed packaged food'),brand:String(p.brands||''),serving,portion:matched?Number(matched[1].replace(',','.')):100,kcal,protein:num('proteins_100g'),carbs:num('carbohydrates_100g'),fat:num('fat_100g'),sugars:num('sugars_100g'),fiber:num('fiber_100g')};
-  barcodeMessage=kcal===null?'No calorie data available; cannot log automatically.':'Check the label before adding.';
- }catch(err){barcodeMessage='Lookup failed: '+err.message+'. You can still log calories manually.'}
- render();portionFacts();
+  barcodeMessage=kcal===null?'Product found, but calorie information is missing. Use the package label to log manually.':'Product found. Check the label before logging.';
+ }catch(error){
+  if(requestId!==barcodeLookupId||tab!=='calories')return;
+  barcodeMessage=(error.name==='AbortError'?'Food lookup timed out':error.message||'Lookup failed')+'. Try product name search or log manually.';
+ }finally{clearTimeout(timer)}
+ if(requestId===barcodeLookupId&&tab==='calories'){render();portionFacts()}
 }
-
 let barcodeScanToken=0,zxingReader=null,zxingLoading=null;
 function updateBarcodeMessage(message){
  barcodeMessage=message;
@@ -2707,7 +2723,7 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.24.0',APP_UPDATED_AT='2026-10-16T07:38:06.714Z';
+const APP_VERSION='1.24.1',APP_UPDATED_AT='2026-10-16T21:33:39.227Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
