@@ -75,6 +75,41 @@ async function verify(token,secret){
  const result=await response.json();
  return result.success===true&&result.hostname==='stefano-mazzone.github.io';
 }
+const FEEDBACK_TYPES=new Set(['Bug report','Feature request','Workout feedback','Other feedback']);
+async function submitPublicFeedback(input,request,env){
+ if(!env.GITHUB_FEEDBACK_TOKEN||!env.TURNSTILE_SECRET||!env.FEEDBACK_RATE_LIMIT)
+  return respond({error:'Feedback service not configured; use GitHub to submit instead.'},503);
+ if(typeof input?.website==='string'&&input.website.trim())return respond({error:'Submission rejected.'},400);
+ const kind=trim(input?.kind,35),title=trim(input?.title,95),details=trim(input?.details,2000);
+ if(!FEEDBACK_TYPES.has(kind)||title.length<5||details.length<10||String(input?.title||'').length>95||
+  String(input?.details||'').length>2000)return respond({error:'Please provide a valid title and description.'},400);
+ const ip=trim(request.headers.get('cf-connecting-ip'),80)||'unknown';
+ const limited=await env.FEEDBACK_RATE_LIMIT.limit({key:'feedback:'+ip});
+ if(!limited.success)return respond({error:'Feedback limit reached. Please try again later.'},429);
+ try{
+  if(!await verify(trim(input.turnstileToken,2049),env.TURNSTILE_SECRET))
+   return respond({error:'Verification expired or failed. Please complete it again.'},403);
+ }catch{return respond({error:'Verification unavailable.'},503)}
+ const body=['**Type:** '+kind,'','**Feedback:**',details,'',
+  '**Source:** Lift Journal public feedback form',
+  '**App version:** '+trim(input.version,30)].join('\n');
+ try{
+  const response=await fetch('https://api.github.com/repos/Stefano-Mazzone/lift-journal/issues',{
+   method:'POST',headers:{'Accept':'application/vnd.github+json',
+    'Authorization':'Bearer '+env.GITHUB_FEEDBACK_TOKEN,
+    'X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json',
+    'User-Agent':'Lift-Journal-Feedback'},
+   body:JSON.stringify({title:'['+kind+'] '+title,body})
+  });
+  if(!response.ok)return respond({error:'Feedback could not be delivered. Please use the GitHub option.'},503);
+  const issue=await response.json();
+  if(typeof issue.html_url!=='string'||!issue.html_url.startsWith('https://github.com/Stefano-Mazzone/lift-journal/issues/'))
+   return respond({error:'Feedback delivery could not be verified.'},503);
+  return respond({ok:true,url:issue.html_url});
+ }catch{
+  return respond({error:'Feedback service unavailable. Please use the GitHub option.'},503);
+ }
+}
 const SYSTEM=[
  'You are Lift Journal Workout Coach. Produce only one JSON object, no markdown.',
  'Required JSON keys: reply, mode, title, goal, equipment, minutes, focus, days.',
@@ -94,16 +129,17 @@ export default {
  async fetch(request,env){
   if(request.headers.get('Origin')!==ORIGIN)return respond({error:'Origin not allowed'},403);
   const path=new URL(request.url).pathname;
-  if(path==='/health'&&request.method==='GET')return respond({ready:!!(env.AI&&env.TURNSTILE_SECRET&&env.COACH_RATE_LIMIT)});
-  if(path!=='/chat')return respond({error:'Not found'},404);
+  if(path==='/health'&&request.method==='GET')return respond({ready:!!(env.AI&&env.TURNSTILE_SECRET&&env.COACH_RATE_LIMIT),feedbackReady:!!(env.GITHUB_FEEDBACK_TOKEN&&env.FEEDBACK_RATE_LIMIT&&env.TURNSTILE_SECRET)});
+  if(!['/chat','/feedback'].includes(path))return respond({error:'Not found'},404);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{
    'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'POST, OPTIONS',
    'Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'86400','Vary':'Origin'}});
   if(request.method!=='POST')return respond({error:'Method not allowed'},405);
-  if(!env.AI||!env.TURNSTILE_SECRET||!env.COACH_RATE_LIMIT)return respond({error:'AI not configured'},503);
+  if(path==='/chat'&&(!env.AI||!env.TURNSTILE_SECRET||!env.COACH_RATE_LIMIT))return respond({error:'AI not configured'},503);
   if(!/^application\/json(?:;|$)/i.test(request.headers.get('content-type')||''))return respond({error:'JSON required'},415);
   if(Number(request.headers.get('content-length')||0)>10000)return respond({error:'Too large'},413);
   let input;try{input=await request.json()}catch{return respond({error:'Invalid JSON'},400)}
+  if(path==='/feedback')return submitPublicFeedback(input,request,env);
   const messages=Array.isArray(input?.messages)?input.messages.slice(-6):[];
   if(!messages.length||messages.at(-1)?.role!=='user'||messages.some(m=>!['user','assistant'].includes(m?.role)||!trim(m.content,501)||m.content.length>500))
    return respond({error:'Please send up to six short messages.'},400);
