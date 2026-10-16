@@ -897,7 +897,7 @@ Power & Olympic Lifts|conditioning|olympic|Clean;Hang Clean;Barbell Hang Clean;C
 Mobility & Rotator Cuff|core|rotation|Cable External Rotation;External Rotation (Arm Abducted);Seated Cable External Rotation;Standing Low-Pulley External Rotation;Side-Lying Clam;Isometric Towel Pull;Rotational Band Pull;Shoulder Warm-Up Routine;Wrist Pronation;Wrist Supination;Neck Extension;Neck Flexion`;
 const movementCatalog=movementCatalogText.trim().split('\n').flatMap(line=>{
  const [category,group,pattern,list]=line.split('|');
- return list.split(';').map(name=>({name:name.trim(),category,group,pattern}));
+ return list.split(';').map(raw=>{const name=raw.trim(),lower=name.toLowerCase();const specific=/wrist|pronation|supination/i.test(name)&&!/curl.*supinated|supinated.*curl/i.test(name)?'forearm':/split squat/.test(lower)?'lunge':/garhammer|hanging leg raise/.test(lower)?'core':pattern;return {name,category,group,pattern:specific};});
 });
 const allExerciseRecords=(()=>{
  const names=new Map();
