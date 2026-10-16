@@ -286,6 +286,21 @@ h1{font-weight:750}h2{font-weight:710}
 .gym-direct-location>strong{color:var(--accent);font-size:13px}
 .gym-direct-location .gym-map-links{display:flex;flex-wrap:wrap;gap:7px}
 .gym-direct-location .btn{font-size:12px;text-decoration:none}
+
+.trainer-limits,.trainer-health-check{border:0;padding:0;margin:5px 0 12px;min-width:0}
+.trainer-limits legend,.trainer-health-check legend{font-size:15px;line-height:1.4;font-weight:750;color:var(--text);padding:0;margin-bottom:7px}
+.trainer-limits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.trainer-limits legend,.trainer-limits p{grid-column:1/-1}
+.trainer-limits label{display:flex;align-items:center;gap:9px;border:1px solid #405567;border-radius:11px;padding:11px;font-size:13px}
+.trainer-limits label:has(input:checked){border-color:var(--accent);background:#1f4137}
+.trainer-limits input{width:18px;height:18px;flex:0 0 18px;accent-color:#83e6b6}
+.trainer-safety-hint{font-size:12px;color:#d9c7a6;line-height:1.55;background:#343126;border:1px solid #786642;border-radius:9px;padding:10px;margin:12px 0}
+.trainer-health-check select{width:100%}
+.setup-question textarea{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px}
+.trainer-plan-note{font-size:12px;line-height:1.5;color:#d9e7e0;border-left:3px solid #74dba6;background:#1d3531;padding:10px 12px;margin:9px 0;border-radius:0 7px 7px 0}
+.trainer-movement-explanation{font-size:11px;line-height:1.4;color:#a9c4b7;margin:8px 0 4px}
+@media(max-width:380px){.trainer-limits{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.setup-progress-track span{transition:none}}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1146,6 +1161,7 @@ function workoutLetter(index){return 'ABCDEFG'[index]||String(index+1)}
 function draftWorkoutOptions(){return catalogWithUserExercises().map(x=>x.name)}
 function draftReview(){
  if(!draftPlan)return '';
+ const notice=(draftPlan.trainerNotes||[]).map(x=>'<p class="trainer-plan-note">'+esc(x)+'</p>').join('');
  const count=draftPlan.days.length,idx=Math.min(Math.max(0,draftExpanded),count-1),workout=draftPlan.days[idx];
  const options=draftWorkoutOptions(),swapOptions='<option value="">Swap with an exercise…</option>'+options.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
  const dayButtons=draftPlan.days.map((d,i)=>'<button type="button" class="draft-day-chip'+(idx===i?' active':'')+'" data-draft-day="'+i+'" aria-pressed="'+(idx===i)+'">'+workoutLetter(i)+'</button>').join('');
@@ -1156,12 +1172,12 @@ function draftReview(){
   '<input id="draft-ex-'+j+'" data-draft-exname="'+j+'" maxlength="90" value="'+esc(ex.name)+'" autocomplete="off">'+
   '<div class="draft-two-fields"><label>Sets<input type="number" data-draft-sets="'+j+'" min="1" max="10" inputmode="numeric" value="'+esc(ex.sets)+'"></label>'+
   '<label>Rep Target<input data-draft-reps="'+j+'" maxlength="30" value="'+esc(ex.reps)+'"></label></div>'+
-  '<label class="input-label" for="draft-swap-'+j+'">Or Choose a Replacement</label>'+
+  '<p class="trainer-movement-explanation">'+esc('Why: '+(identifyExercise(ex.name).category||'General Exercise')+' · '+(draftPlan.trainerProfile?.experience==='beginner'?'Beginner-friendly starting volume.':'Adjustable training volume.'))+'</p>'+'<label class="input-label" for="draft-swap-'+j+'">Or Choose a Replacement</label>'+
   '<select id="draft-swap-'+j+'" data-draft-swap="'+j+'">'+swapOptions+'</select>'+
   '<button type="button" class="btn tiny secondary draft-browse-btn" data-draft-browse="'+j+'">Browse Library & Recommendations</button></div>').join('');
  return '<section class="draft-review" id="draft-review">'+
   '<div class="draft-review-title"><span class="workout-picker-step">REVIEW BEFORE ACTIVATING</span><h3>Customize Your Program</h3>'+
-  '<p class="note">Nothing has changed in your active program. Adjust any exercise, set count or rep range below, then activate only when ready.</p></div>'+
+  '<p class="note">Nothing has changed in your active program. Adjust any exercise, set count or rep range below, then activate only when ready.</p>'+notice+'</div>'+
   '<label for="draft-plan-title" class="input-label">Program Name</label><input id="draft-plan-title" data-draft-field="label" maxlength="65" value="'+esc(draftPlan.label)+'">'+
   '<label for="draft-plan-focus" class="input-label">Description</label><input id="draft-plan-focus" data-draft-field="focus" maxlength="110" value="'+esc(draftPlan.focus||'')+'">'+
   '<div class="draft-day-toolbar"><strong>Workout Types ('+count+')</strong><span class="note">Tap a letter to edit that day</span></div>'+
@@ -1174,34 +1190,75 @@ function draftReview(){
   '<div class="draft-final-actions">'+button('Activate This Program','apply-draft')+button('Discard Draft','discard-draft','secondary')+'</div></div></section>';
 }
 
+
+const TRAINER_SETUP_STEPS=[
+ 'Your Goal','Your Experience','Schedule & Time','Available Equipment','Movement Limitations','Health & Readiness'
+];
+function trainerOptions(id,options,selected){
+ return '<select id="'+id+'">'+options.map(([v,label])=>'<option value="'+v+'"'+(String(selected)===String(v)?' selected':'')+'>'+label+'</option>').join('')+'</select>';
+}
 function setupPreferencesInput(){
+ const p=setupPrefs;
  const field=setupStep===0?
-  '<label class="input-label" for="gen-goal">What is your main goal?</label><select id="gen-goal">'+
-  [['muscle','Build Muscle'],['strength','Build Strength'],['general','General Fitness']].map(([v,label])=>
-   '<option value="'+v+'"'+(setupPrefs.goal===v?' selected':'')+'>'+label+'</option>').join('')+'</select>':
-  setupStep===1?
-  '<label class="input-label" for="gen-days">How many days per week would you like to train?</label><select id="gen-days">'+
-  Array.from({length:7},(_,i)=>i+1).map(n=>'<option value="'+n+'"'+(setupPrefs.days===n?' selected':'')+'>'+n+
-   (n===1?' Day':' Days')+'</option>').join('')+'</select>'+
-  '<p class="note">Choose 1–7 days. You can change the weekdays after activating your plan.</p>':
-  '<label class="input-label" for="gen-equipment">What equipment do you have?</label><select id="gen-equipment">'+
-  [['all','Full Gym'],['dumbbells','Mostly Dumbbells'],['cables','Mostly Cable Machines']].map(([v,label])=>
-   '<option value="'+v+'"'+(setupPrefs.equipment===v?' selected':'')+'>'+label+'</option>').join('')+'</select>';
- return '<div class="setup-question"><div class="setup-progress-label"><span>STEP '+(setupStep+1)+' OF 3</span>'+
-  '<span>'+['Your Goal','Training Frequency','Available Equipment'][setupStep]+'</span></div>'+
-  '<div class="setup-progress-track"><span style="width:'+((setupStep+1)/3*100)+'%"></span></div>'+field+
-  '<div class="setup-actions">'+(setupStep>0?button('Back','setup-back','secondary'):'')+
-  button(setupStep===2?'Generate & Review Program':'Continue','setup-next')+'</div></div>';
+  '<label class="input-label" for="gen-goal">What would you most like to achieve?</label>'+
+  trainerOptions('gen-goal',[['muscle','Build Muscle'],['strength','Build Strength'],['general','Improve Overall Fitness']],p.goal):
+ setupStep===1?
+  '<label class="input-label" for="gen-experience">How would you describe your lifting experience?</label>'+
+  trainerOptions('gen-experience',[['beginner','New to Strength Training'],['returning','Returning After a Break'],['intermediate','Consistent for 6+ Months'],['experienced','Experienced Lifter']],p.experience)+
+  '<p class="note">This affects the starting set counts and pace of progression.</p>':
+ setupStep===2?
+  '<label class="input-label" for="gen-days">How many days per week can you realistically train?</label>'+
+  trainerOptions('gen-days',Array.from({length:7},(_,i)=>[i+1,(i+1)+' '+(i===0?'Day':'Days')]),p.days)+
+  '<label class="input-label" for="gen-minutes">How much time do you have for each workout?</label>'+
+  trainerOptions('gen-minutes',[[20,'About 20 Minutes'],[30,'About 30 Minutes'],[45,'About 45 Minutes'],[60,'About 60 Minutes']],p.minutes)+
+  '<p class="note">Five to seven days may include lighter recovery-focused sessions rather than daily hard lifting.</p>':
+ setupStep===3?
+  '<label class="input-label" for="gen-equipment">What equipment can you use regularly?</label>'+
+  trainerOptions('gen-equipment',[['all','Full Gym'],['dumbbells','Dumbbells & Bodyweight'],['cables','Cables & Bodyweight']],p.equipment):
+ setupStep===4?
+  '<fieldset class="trainer-limits"><legend>Any current pain, past injuries, or movements you want to be cautious with? (Optional)</legend>'+
+  '<p class="note">Choose areas you want considered. You do not need to share a diagnosis.</p>'+
+  TRAINER_LIMIT_AREAS.map(([code,label])=>'<label><input type="checkbox" name="trainer-limit" value="'+code+'"'+
+   ((p.limits||[]).includes(code)?' checked':'')+'><span>'+label+'</span></label>').join('')+'</fieldset>'+
+  '<label class="input-label" for="gen-limit-status">If you selected an area, which best describes it?</label>'+
+  trainerOptions('gen-limit-status',[['past','Past Issue / No Current Pain'],['current','Current Pain or Unresolved Issue']],p.limitStatus)+
+  '<label class="input-label" for="gen-limit-notes">Any movement restrictions given by a professional? (Optional)</label>'+
+  '<textarea id="gen-limit-notes" rows="2" maxlength="180" placeholder="e.g., Avoid heavy overhead lifting">'+esc(p.notes||'')+'</textarea>'+
+  '<p class="trainer-safety-hint">The app can flag related movements, but cannot determine which exercises are medically safe. Avoid anything that causes or worsens pain. For a recent or active injury, seek individualized advice.</p>':
+  '<fieldset class="trainer-health-check"><legend>Before starting, do any of these apply?</legend>'+
+  '<p class="note">Chest pain/pressure during activity, fainting or unexplained dizziness, unusual shortness of breath at mild effort, or being told by a clinician to avoid exercise.</p>'+
+  '<label for="gen-medical" class="input-label">Your Answer</label>'+
+  trainerOptions('gen-medical',[['unanswered','Choose an Answer'],['no','No'],['yes','Yes'],['unsure','Not Sure']],p.medical)+
+  '<p class="trainer-safety-hint">If yes or unsure, speak with a qualified healthcare professional before beginning a new exercise plan. This is a screening question, not a diagnosis.</p></fieldset>';
+ return '<div class="setup-question"><div class="setup-progress-label"><span>STEP '+(setupStep+1)+' OF '+TRAINER_SETUP_STEPS.length+'</span>'+
+  '<span>'+TRAINER_SETUP_STEPS[setupStep]+'</span></div>'+
+  '<div class="setup-progress-track"><span style="width:'+((setupStep+1)/TRAINER_SETUP_STEPS.length*100)+'%"></span></div>'+
+  field+'<div class="setup-actions">'+(setupStep>0?button('Back','setup-back','secondary'):'')+
+  button(setupStep===TRAINER_SETUP_STEPS.length-1?'Generate & Review Program':'Continue','setup-next')+'</div></div>';
 }
 function rememberSetupAnswer(){
- const goal=document.getElementById('gen-goal'),days=document.getElementById('gen-days'),equipment=document.getElementById('gen-equipment');
- if(goal&&['muscle','strength','general'].includes(goal.value))setupPrefs.goal=goal.value;
- if(days){const n=Number(days.value);if(Number.isInteger(n)&&n>=1&&n<=7)setupPrefs.days=n}
- if(equipment&&['all','dumbbells','cables'].includes(equipment.value))setupPrefs.equipment=equipment.value;
+ const value=id=>document.getElementById(id)?.value;
+ if(['muscle','strength','general'].includes(value('gen-goal')))setupPrefs.goal=value('gen-goal');
+ if(['beginner','returning','intermediate','experienced'].includes(value('gen-experience')))setupPrefs.experience=value('gen-experience');
+ const days=Number(value('gen-days')),minutes=Number(value('gen-minutes'));
+ if(Number.isInteger(days)&&days>=1&&days<=7)setupPrefs.days=days;
+ if([20,30,45,60].includes(minutes))setupPrefs.minutes=minutes;
+ if(['all','dumbbells','cables'].includes(value('gen-equipment')))setupPrefs.equipment=value('gen-equipment');
+ if(setupStep===4){
+  setupPrefs.limits=[...document.querySelectorAll('input[name="trainer-limit"]:checked')].map(x=>x.value).filter(x=>TRAINER_LIMIT_AREAS.some(a=>a[0]===x));
+  if(['past','current'].includes(value('gen-limit-status')))setupPrefs.limitStatus=value('gen-limit-status');
+  setupPrefs.notes=String(value('gen-limit-notes')||'').slice(0,180);
+ }
+ if(['no','yes','unsure','unanswered'].includes(value('gen-medical')))setupPrefs.medical=value('gen-medical');
 }
 function setupNext(){
  rememberSetupAnswer();
- if(setupStep<2){setupStep++;render();document.getElementById('program-builder')?.scrollIntoView({block:'nearest'});return}
+ if(setupStep<TRAINER_SETUP_STEPS.length-1){
+  setupStep++;render();document.getElementById('program-builder')?.scrollIntoView({block:'nearest'});return;
+ }
+ if(setupPrefs.medical!=='no'){
+  alert('Before starting a new program, please seek advice from a qualified healthcare professional about the symptoms or concern selected. Lift Journal cannot provide medical clearance.');return;
+ }
  createProgramDraft();
 }
 function planBuilder(){
@@ -1216,7 +1273,8 @@ function planBuilder(){
 function createProgramDraft(){
  const {goal,days,equipment}=setupPrefs;
  if(!Number.isInteger(days)||days<1||days>7)return alert('Choose between 1 and 7 workout days.');
- draftPlan=generatedRoutine(goal,days,equipment);
+ if(setupPrefs.medical!=='no'){alert('Complete the health and readiness question before generating a program.');return}
+ try{draftPlan=generatedRoutine(goal,days,equipment)}catch(error){alert(error.message||'Could not create a plan with these restrictions.');return}
  draftExpanded=0;builderVisible=true;render();
  document.getElementById('draft-review')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
