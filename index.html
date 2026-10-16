@@ -1013,7 +1013,7 @@ function dailyChoiceInputs(){
  [['all','Full Gym'],['dumbbells','Dumbbells & Bodyweight'],['cables','Cables & Bodyweight']].map(([v,name])=>
  '<option value="'+v+'"'+((dailyChoice.equipment||data.trainerProfile?.equipment||'all')===v?' selected':'')+'>'+name+'</option>').join('')+'</select></label>'+
  '<label>Training Goal<select id="daily-goal">'+
- [['muscle','Build Muscle'],['strength','Build Strength'],['general','Overall Fitness']].map(([v,name])=>
+ [['muscle','Build Muscle'],['strength','Build Strength'],['general','Overall Fitness'],['running','Running Support']].map(([v,name])=>
  '<option value="'+v+'"'+((dailyChoice.goal||data.trainerProfile?.goal||'muscle')===v?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>'+
  (dailyChoice.mode==='favorites'?'<p class="note">'+data.favoriteMovements.length+' saved favorite'+(data.favoriteMovements.length===1?'':'s')+
  '. Only favorites matching your selected focus, equipment and stated limitations are included. Star more in the Movements tab.</p>':'')+
@@ -1194,7 +1194,7 @@ function runningPage(){
  (logs.length>35?'<p class="note">Showing 35 most recent. Older sessions remain in your exported backup.</p>':''):'')+'</section>';
 }
 function runnerStrengthProgram(){
- const profile={...trainerDefaultPrefs(),...(data.trainerProfile||{}),goal:'running',days:2,minutes:30,medical:'unanswered'};
+ const profile={...trainerDefaultPrefs(),goal:'running',days:2,minutes:30,equipment:data.trainerProfile?.equipment||'all',experience:data.trainerProfile?.experience||'beginner',medical:'unanswered'};
  setupPrefs=profile;
  setupStep=0;draftPlan=null;builderVisible=true;tab='home';
  render();document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -1973,7 +1973,43 @@ function trainerChoose(group,profile,index,used){
  if(!candidates.length)return null;
  const name=candidates[index%candidates.length];used.add(name);return name;
 }
+function runnerStrengthRoutine(days,equipment,prefs){
+ const profile={...trainerProfile(prefs),goal:'running',days,equipment};
+ if(hasHighPain(profile))throw Error('High pain was reported. Please get personalized professional advice before starting exercise.');
+ const novice=['beginner','returning'].includes(profile.experience);
+ const volume=novice?2:profile.experience==='experienced'?3:2;
+ const count=profile.minutes<=25?3:profile.minutes<=35?4:profile.minutes<=50?5:6;
+ const blocks=[
+  ['squat','pull','core','accessory','hinge','push'],
+  ['hinge','push','core','accessory','squat','pull'],
+  ['recovery','core','accessory','pull','push','hinge']
+ ];
+ const list=[];
+ for(let i=0;i<days;i++){
+  const lighter=i>=2||days>=5&&i%3===2;
+  const order=lighter?blocks[2]:blocks[i%2],used=new Set(),exercises=[];
+  for(const group of order){
+   if(exercises.length>=count)break;
+   const name=trainerChoose(group,profile,i+exercises.length,used);
+   if(!name)continue;
+   const sets=lighter?1:volume;
+   exercises.push(X(name,sets,group==='core'?'8–12':lighter?'10–12':'6–12',group==='core'?45:90));
+  }
+  if(!exercises.length)throw Error('No runner strength exercises match these equipment or movement limitations.');
+  list.push([(lighter?'Recovery Strength ':'Runner Strength ')+workoutLetter(i),exercises]);
+ }
+ return {label:'Strength for Runners',
+  focus:days+' sessions per week · '+profile.minutes+' min · running-support strength',
+  days:list,trainerProfile:profile,trainerNotes:[
+   'Runner-specific strength support: controlled single-leg work, hip and leg strength, calf and core stability.',
+   'Keep hard strength workouts away from important races or your most demanding running days when possible.',
+   'These are optional strength sessions, not additional mandatory running mileage. Keep running progress gradual.',
+   'Start below maximum effort, adjust to your running volume, and stop movements that provoke symptoms.',
+   'General fitness guidance only, not medical advice or an injury rehabilitation plan.'
+  ]};
+}
 function generatedRoutine(goal,days,equipment,prefs=setupPrefs){
+ if(goal==='running')return runnerStrengthRoutine(days,equipment,prefs);
  const profile={...trainerProfile(prefs),goal,days,equipment};
  if(hasHighPain(profile))throw Error('High pain was reported. Do not automatically create a workout; seek personalized professional advice first.');
  const novice=['beginner','returning'].includes(profile.experience),sets=novice?2:profile.experience==='experienced'?4:3;
@@ -2052,7 +2088,7 @@ function setupPreferencesInput(){
  const p=setupPrefs;
  const field=setupStep===0?
   '<label class="input-label" for="gen-goal">What would you most like to achieve?</label>'+
-  trainerOptions('gen-goal',[['muscle','Build Muscle'],['strength','Build Strength'],['general','Improve Overall Fitness']],p.goal):
+  trainerOptions('gen-goal',[['muscle','Build Muscle'],['strength','Build Strength'],['general','Improve Overall Fitness'],['running','Strength for Runners']],p.goal):
  setupStep===1?
   '<label class="input-label" for="gen-experience">How would you describe your lifting experience?</label>'+
   trainerOptions('gen-experience',[['beginner','New to Strength Training'],['returning','Returning After a Break'],['intermediate','Consistent for 6+ Months'],['experienced','Experienced Lifter']],p.experience)+
@@ -2084,7 +2120,7 @@ function setupPreferencesInput(){
 }
 function rememberSetupAnswer(){
  const value=id=>document.getElementById(id)?.value;
- if(['muscle','strength','general'].includes(value('gen-goal')))setupPrefs.goal=value('gen-goal');
+ if(['muscle','strength','general','running'].includes(value('gen-goal')))setupPrefs.goal=value('gen-goal');
  if(['beginner','returning','intermediate','experienced'].includes(value('gen-experience')))setupPrefs.experience=value('gen-experience');
  const days=Number(value('gen-days')),minutes=Number(value('gen-minutes'));
  if(Number.isInteger(days)&&days>=1&&days<=7)setupPrefs.days=days;
@@ -3520,7 +3556,7 @@ if(t.id==='daily-medical'){
  dailyCheck.medical=['no','yes','unsure','unanswered'].includes(t.value)?t.value:'unanswered';
  dailyCheck.confirmed=false;render();return;
 }
-if(t.id==='daily-equipment'){if(['all','dumbbells','cables'].includes(t.value)){coachSessionSuggestion=null;dailyChoice.equipment=t.value;dailyCheck.confirmed=false;render()}return}if(t.id==='daily-goal'){if(['muscle','strength','general'].includes(t.value)){coachSessionSuggestion=null;dailyChoice.goal=t.value;render()}return}if(t.id==='daily-effort'){coachSessionSuggestion=null;dailyChoice.effort=t.value==='light'?'light':'normal';render();return}if(t.id==='daily-minutes'){coachSessionSuggestion=null;const n=Number(t.value);if([20,30,45,60].includes(n))dailyChoice.minutes=n;render();return}if(t.id==='exercise-picker-category'&&swapPicker){swapPicker.category=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(t.dataset.draftSwap!==undefined){editDraftSwap(Number(t.dataset.draftSwap),t.value);return}if(t.id==='barcode-photo'||t.id==='barcode-photo-picker'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='food-unit'){updateManualFoodHint();return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(['food-quantity','food-kcal'].includes(t.id)){updateManualFoodHint();return}if(t.id==='exercise-picker-search'&&swapPicker){swapPicker.query=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(draftPlan&&(t.dataset.draftField!==undefined||t.dataset.draftWorkoutName!==undefined||t.dataset.draftExname!==undefined||t.dataset.draftSets!==undefined||t.dataset.draftReps!==undefined)){draftInputChanged(t);return}if(t.id==='gym-city'){gymTyping(t.value);return}if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p){p.style.width=(total?100*completed/total:0)+'%';if(t.checked&&total&&completed===total){p.parentElement?.classList.remove('lj-progress-complete');void p.parentElement?.offsetWidth;p.parentElement?.classList.add('lj-progress-complete')}}if(t.checked){t.classList.remove('lj-set-checked');void t.offsetWidth;t.classList.add('lj-set-checked')}else t.classList.remove('lj-set-checked')}}});
+if(t.id==='daily-equipment'){if(['all','dumbbells','cables'].includes(t.value)){coachSessionSuggestion=null;dailyChoice.equipment=t.value;dailyCheck.confirmed=false;render()}return}if(t.id==='daily-goal'){if(['muscle','strength','general','running'].includes(t.value)){coachSessionSuggestion=null;dailyChoice.goal=t.value;render()}return}if(t.id==='daily-effort'){coachSessionSuggestion=null;dailyChoice.effort=t.value==='light'?'light':'normal';render();return}if(t.id==='daily-minutes'){coachSessionSuggestion=null;const n=Number(t.value);if([20,30,45,60].includes(n))dailyChoice.minutes=n;render();return}if(t.id==='exercise-picker-category'&&swapPicker){swapPicker.category=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(t.dataset.draftSwap!==undefined){editDraftSwap(Number(t.dataset.draftSwap),t.value);return}if(t.id==='barcode-photo'||t.id==='barcode-photo-picker'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='food-unit'){updateManualFoodHint();return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(['food-quantity','food-kcal'].includes(t.id)){updateManualFoodHint();return}if(t.id==='exercise-picker-search'&&swapPicker){swapPicker.query=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(draftPlan&&(t.dataset.draftField!==undefined||t.dataset.draftWorkoutName!==undefined||t.dataset.draftExname!==undefined||t.dataset.draftSets!==undefined||t.dataset.draftReps!==undefined)){draftInputChanged(t);return}if(t.id==='gym-city'){gymTyping(t.value);return}if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p){p.style.width=(total?100*completed/total:0)+'%';if(t.checked&&total&&completed===total){p.parentElement?.classList.remove('lj-progress-complete');void p.parentElement?.offsetWidth;p.parentElement?.classList.add('lj-progress-complete')}}if(t.checked){t.classList.remove('lj-set-checked');void t.offsetWidth;t.classList.add('lj-set-checked')}else t.classList.remove('lj-set-checked')}}});
 
 function backupRecord(v){return v&&typeof v==='object'&&!Array.isArray(v)}
 function validateBackupFile(parsed){
