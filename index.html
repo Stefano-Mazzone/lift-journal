@@ -297,7 +297,14 @@ function weightChart(entry){
  return '<svg class="movement-chart" viewBox="0 0 340 170" role="img" aria-label="Maximum completed-set weight by workout date in '+esc(entry.unit)+'">'+lines+'<path d="'+path+'" fill="none" stroke="#83e6b6" stroke-width="3" stroke-linejoin="round"/>'+circles+'<text x="'+left+'" y="165" font-size="10" fill="#a7b4c6">'+esc(new Date(pts[0].date).toLocaleDateString())+'</text><text x="'+(w-right)+'" y="165" text-anchor="end" font-size="10" fill="#a7b4c6">'+esc(new Date(pts[pts.length-1].date).toLocaleDateString())+'</text></svg>';
 }
 function movements(){
- const all=recordedMovements(),q=movementFilter.toLocaleLowerCase(),filtered=all.filter(x=>x.name.toLocaleLowerCase().includes(q));
+ const logged=recordedMovements(),libraryNames=new Map();
+ cycles.forEach(c=>c.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name))));
+ if(data.customPlan)data.customPlan.days.forEach(d=>d[1].forEach(e=>libraryNames.set(e.name.toLowerCase(),e.name)));
+ Object.values(data.sessions).forEach(s=>(s.exercises||[]).forEach(e=>{libraryNames.set(e.name.toLowerCase(),e.name);if(e.originalName)libraryNames.set(e.originalName.toLowerCase(),e.originalName)}));
+ const all=[...libraryNames.values()].map(name=>logged.find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.unit===data.unit)||{name,unit:data.unit,entries:[]});
+ logged.forEach(x=>{if(!all.some(e=>e.name===x.name&&e.unit===x.unit))all.push(x)});
+ all.sort((a,b)=>a.name.localeCompare(b.name));
+ const q=movementFilter.toLocaleLowerCase(),filtered=all.filter(x=>x.name.toLocaleLowerCase().includes(q));
  const chosen=all.find(x=>x.name+'|'+x.unit===movementSelected)||filtered[0]||null;
  const names=filtered.map(x=>'<button class="movement-choice '+(chosen===x?'chosen':'')+'" data-movement-key="'+esc(x.name+'|'+x.unit)+'">'+esc(x.name)+' <span class="note">('+esc(x.unit)+', '+x.entries.length+' sessions)</span></button>').join('');
  const detail=chosen?'<section class="card"><h2>'+esc(chosen.name)+'</h2><p class="muted">Highest weight from completed sets in each logged session ('+esc(chosen.unit)+'). Each dot represents one workout.</p>'+weightChart(chosen)+'<h3>Recorded sessions</h3><div style="overflow-x:auto"><table class="movement-table"><thead><tr><th>Date</th><th>Top weight</th><th>Sets logged</th><th>Reps per set</th></tr></thead><tbody>'+chosen.entries.slice().reverse().map(x=>'<tr><td>'+esc(new Date(x.date).toLocaleDateString())+'</td><td>'+formatWeight(x.weight)+' '+esc(chosen.unit)+'</td><td>'+x.sets+'</td><td>'+x.reps.join(', ')+'</td></tr>').join('')+'</tbody></table></div></section>':'<section class="card"><p class="muted">Complete a workout and check off sets with weights and reps to see a movement chart here.</p></section>';
