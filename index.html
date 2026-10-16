@@ -354,6 +354,10 @@ h1{font-weight:750}h2{font-weight:710}
 .daily-pain-check #daily-medical{width:100%;min-height:46px;border-radius:9px;background:var(--surface2);color:var(--text);border:1px solid #536f67;padding:9px}
 .daily-confirm-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
 .daily-confirm-row .btn:disabled{opacity:.52;cursor:not-allowed}
+
+.session-pain-recap{padding:11px 13px;background:#1a3231;border:1px solid #42695c;border-radius:12px;margin:12px 0}
+.session-pain-recap strong{font-size:13px;color:var(--accent)}
+.session-pain-recap p{margin:6px 0 0;font-size:12px}
 </style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1048,6 +1052,11 @@ function sessionView(){
  const c=cycleForSession(s),def=c.days[s.day][1],active=s.exercises.filter(e=>!e.skipped);
  const done=active.reduce((n,e)=>n+e.sets.filter(v=>v.done).length,0),total=active.reduce((n,e)=>n+e.sets.length,0);
  let output=header('<h1>'+esc(c.days[s.day][0])+'</h1><p class="sub">Program '+(s.programNumber||'legacy')+' · '+labelMonth(s.month)+' · '+(s.finished?(editingPast?'Editing completed workout':'Completed session'):'Your training session')+' · '+done+'/'+total+' sets checked</p>');
+ if(s.dayCheckIn){
+  output+='<div class="session-pain-recap"><strong>Today’s Readiness Check</strong><p class="note">'+
+    esc(painSummary(s.trainerProfile||{painLevels:s.dayCheckIn.painLevels}))+
+    ' · Recorded for this workout only. Suggested substitutions consider these flags, but do not establish medical safety.</p></div>';
+ }
  output+='<div class="progress"><div style="width:'+(total?100*done/total:0)+'%"></div></div>'+
  '<section class="card workout-session-date"><div class="row"><div><strong>Workout Date</strong>'+
  '<div class="note">'+esc(historyDateLabel(scheduledWorkoutDate(s)))+' · '+(s.finished?'Completed':'In Progress')+'</div></div>'+
