@@ -2122,7 +2122,7 @@ function chooseFood(i){
 }
 function scannedFoodUI(){
  const f=scannedFood;
- return '<section class="card"><h2>Scan packaged food</h2><p class="muted">Look up nutrition from Open Food Facts. Review the label: community entries may contain mistakes.</p><div class="barcode-row"><input class="calorie-date" id="barcode-input" inputmode="numeric" placeholder="Enter barcode number" aria-label="Product barcode"><button class="btn secondary" data-action="barcode-lookup">Look up</button></div><button class="btn secondary" style="margin-top:10px" data-action="barcode-camera">Scan with camera</button><button class="btn tiny secondary" style="margin-top:10px" data-action="barcode-stop">Stop camera</button><label class="btn secondary" style="display:inline-block;margin-top:10px;cursor:pointer">Scan from photo<input id="barcode-photo" class="hide" type="file" accept="image/*" capture="environment"></label><video id="barcode-video" autoplay playsinline muted style="display:none"></video><div class="note" id="barcode-status">'+esc(barcodeMessage)+'</div>'+
+ return '<section class="card"><h2>Scan packaged food</h2><p class="muted">Look up nutrition from Open Food Facts. Review the label: community entries may contain mistakes.</p><div class="barcode-row"><input class="calorie-date" id="barcode-input" inputmode="numeric" placeholder="Enter barcode number" aria-label="Product barcode"><button class="btn secondary" data-action="barcode-lookup">Look up</button></div><button class="btn secondary" style="margin-top:10px" data-action="barcode-camera">Scan with camera</button><button class="btn tiny secondary" style="margin-top:10px" data-action="barcode-stop">Stop camera</button><label class="btn secondary" style="display:inline-block;margin-top:10px;cursor:pointer">Take barcode photo<input id="barcode-photo" class="hide" type="file" accept="image/*" capture="environment"></label><label class="btn secondary" style="display:inline-block;margin-top:10px;margin-left:8px;cursor:pointer">Choose photo<input id="barcode-photo-picker" class="hide" type="file" accept="image/*"></label><video id="barcode-video" autoplay playsinline muted style="display:none"></video><div class="note" id="barcode-status">'+esc(barcodeMessage)+'</div>'+
  (f?'<div class="barcode-preview"><h3>'+esc(f.name)+'</h3><p class="note">'+esc(f.brand||'')+' · Barcode '+esc(f.code)+'</p><label for="portion-grams">Amount eaten (grams)</label><input type="number" id="portion-grams" inputmode="decimal" min="1" max="10000" step="any" value="'+esc(f.portion)+'"><p class="note">Suggested serving: '+esc(f.serving||'Not specified')+'. Adjust grams to match what you actually ate.</p>'+(f.cup?'<label for="portion-cups">Approximate cups</label><input id="portion-cups" type="number" min="0.01" max="30" step="0.25" value="'+formatWeight(f.portion/f.cup)+'">':'')+'<div id="portion-facts"></div><button class="btn" data-action="add-scanned" style="margin-top:12px;width:100%">Add portion to today</button></div>':'')+'</section>';
 }
 function portionFacts(){
@@ -2236,22 +2236,57 @@ async function startBarcodeCamera(){
 async function scanBarcodePhoto(file){
  if(!file)return;
  stopBarcodeCamera();
+ const token=barcodeScanToken;
  updateBarcodeMessage('Reading barcode from photo…');
- let url;
+ let url=null,reader=null;
  try{
+  if(file.size>20*1024*1024)throw Error('Photo exceeds 20 MB');
   await loadBarcodeLibrary();
+  if(token!==barcodeScanToken||tab!=='calories')return;
   url=URL.createObjectURL(file);
   const image=new Image();
   image.src=url;
-  await new Promise((resolve,reject)=>{if(image.complete&&image.naturalWidth){resolve();return}image.onload=resolve;image.onerror=()=>reject(new Error('Could not open the photo'))});
-  const reader=new window.ZXing.BrowserMultiFormatReader();
-  const result=await reader.decodeFromImageElement(image);
-  reader.reset();
-  const barcode=String(result.getText?.()||result.text||'').replace(/[^0-9]/g,'');
-  if(!/^\d{8,14}$/.test(barcode))throw Error('No food barcode found in this photo');
-  lookupBarcode(barcode);
- }catch(error){updateBarcodeMessage('Could not read barcode: '+(error.message||error)+'. Try better lighting or enter the digits.')}
- finally{if(url)URL.revokeObjectURL(url)}
+  await new Promise((resolve,reject)=>{
+   if(image.complete&&image.naturalWidth){resolve();return}
+   image.onload=resolve;
+   image.onerror=()=>reject(Error('Could not open photo'));
+  });
+  if(token!==barcodeScanToken||tab!=='calories')return;
+  const Z=window.ZXing;
+  const formats=[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E];
+  reader=new Z.BrowserMultiFormatReader(new Map([[Z.DecodeHintType.POSSIBLE_FORMATS,formats]]));
+  let code=null;
+  for(const mode of ['full','center','rotate']){
+   if(token!==barcodeScanToken||tab!=='calories')return;
+   try{
+    const crop=mode==='center',rotate=mode==='rotate';
+    const width=image.naturalWidth,height=image.naturalHeight;
+    const sx=crop?width*.12:0,sy=crop?height*.20:0;
+    const sw=crop?width*.76:width,sh=crop?height*.60:height;
+    const scale=Math.min(1,1800/Math.max(sw,sh));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round((rotate?sh:sw)*scale));
+    canvas.height=Math.max(1,Math.round((rotate?sw:sh)*scale));
+    const context=canvas.getContext('2d');
+    if(!context)throw Error('Image processing unavailable');
+    if(rotate){context.translate(canvas.width,0);context.rotate(Math.PI/2)}
+    context.drawImage(image,sx,sy,sw,sh,0,0,sw*scale,sh*scale);
+    const prepared=new Image();
+    prepared.src=canvas.toDataURL('image/jpeg',.92);
+    const result=await reader.decodeFromImageElement(prepared);
+    const barcode=String(result.getText?.()||result.text||'').trim();
+    if(/^\d{8,14}$/.test(barcode)){code=barcode;break}
+   }catch(error){}
+  }
+  if(!code)throw Error('No readable barcode found');
+  if(token===barcodeScanToken&&tab==='calories')lookupBarcode(code);
+ }catch(error){
+  if(token===barcodeScanToken&&tab==='calories')
+   updateBarcodeMessage('Could not read barcode: '+(error.message||error)+'. Try a well-lit close-up or type the digits.');
+ }finally{
+  if(reader)try{reader.reset()}catch(error){}
+  if(url)URL.revokeObjectURL(url);
+ }
 }
 function addScannedFood(){
  const f=scannedFood,g=Number(document.getElementById('portion-grams')?.value);
@@ -2795,7 +2830,7 @@ if(t.id==='daily-medical'){
  dailyCheck.medical=['no','yes','unsure','unanswered'].includes(t.value)?t.value:'unanswered';
  dailyCheck.confirmed=false;render();return;
 }
-if(t.id==='daily-effort'){dailyChoice.effort=t.value==='light'?'light':'normal';render();return}if(t.id==='daily-minutes'){const n=Number(t.value);if([20,30,45,60].includes(n))dailyChoice.minutes=n;render();return}if(t.id==='exercise-picker-category'&&swapPicker){swapPicker.category=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(t.dataset.draftSwap!==undefined){editDraftSwap(Number(t.dataset.draftSwap),t.value);return}if(t.id==='barcode-photo'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(t.id==='exercise-picker-search'&&swapPicker){swapPicker.query=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(draftPlan&&(t.dataset.draftField!==undefined||t.dataset.draftWorkoutName!==undefined||t.dataset.draftExname!==undefined||t.dataset.draftSets!==undefined||t.dataset.draftReps!==undefined)){draftInputChanged(t);return}if(t.id==='gym-city'){gymTyping(t.value);return}if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p){p.style.width=(total?100*completed/total:0)+'%';if(t.checked&&total&&completed===total){p.parentElement?.classList.remove('lj-progress-complete');void p.parentElement?.offsetWidth;p.parentElement?.classList.add('lj-progress-complete')}}if(t.checked){t.classList.remove('lj-set-checked');void t.offsetWidth;t.classList.add('lj-set-checked')}else t.classList.remove('lj-set-checked')}}});
+if(t.id==='daily-effort'){dailyChoice.effort=t.value==='light'?'light':'normal';render();return}if(t.id==='daily-minutes'){const n=Number(t.value);if([20,30,45,60].includes(n))dailyChoice.minutes=n;render();return}if(t.id==='exercise-picker-category'&&swapPicker){swapPicker.category=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(t.dataset.draftSwap!==undefined){editDraftSwap(Number(t.dataset.draftSwap),t.value);return}if(t.id==='barcode-photo'||t.id==='barcode-photo-picker'){const file=t.files?.[0];if(file)scanBarcodePhoto(file);t.value='';return}if(t.id==='gym-radius'){gymRadius=Number(t.value);render();return}if(t.id==='calorie-date'){calorieDay=t.value;render()}if(t.id==='calorie-goal'){const v=Number(t.value);if(!Number.isInteger(v)||v<1||v>20000){alert('Enter a calorie goal between 1 and 20,000.');render();return}calorieInfo().goal=v;save();render()}});document.addEventListener('input',e=>{const t=e.target;if(t.id==='exercise-picker-search'&&swapPicker){swapPicker.query=t.value;swapPicker.limit=70;refreshExercisePickerResults();return}if(draftPlan&&(t.dataset.draftField!==undefined||t.dataset.draftWorkoutName!==undefined||t.dataset.draftExname!==undefined||t.dataset.draftSets!==undefined||t.dataset.draftReps!==undefined)){draftInputChanged(t);return}if(t.id==='gym-city'){gymTyping(t.value);return}if(t.id==='portion-cups'&&scannedFood?.cup){document.getElementById('portion-grams').value=formatWeight(Number(t.value)*scannedFood.cup);portionFacts();return}if(t.id==='portion-grams'){if(scannedFood?.cup){const c=document.getElementById('portion-cups');if(c)c.value=formatWeight(Number(t.value)/scannedFood.cup)}portionFacts();return}if(t.id==='tonnage-period'){tonnagePeriod=t.value;render();return}if(t.id==='tonnage-unit'){tonnageUnit=t.value;render();return}if(t.id==='movement-search'){movementFilter=t.value;const pos=t.selectionStart;render();const field=document.getElementById('movement-search');if(field){field.focus();field.setSelectionRange(pos,pos)}return}if(t.id==='unit'){data.unit=t.value;save();return}if(t.dataset.field){const s=data.sessions[editing],v=s?.exercises[Number(t.dataset.ex)]?.sets[Number(t.dataset.set)];if(!v||(s.finished&&!editingPast))return;v[t.dataset.field]=t.dataset.field==='done'?t.checked:t.value;save();if(t.dataset.field==='done'){const active=s.exercises.filter(x=>!x.skipped),completed=active.flatMap(x=>x.sets).filter(x=>x.done).length,total=active.flatMap(x=>x.sets).length;const p=document.querySelector('.progress>div');if(p){p.style.width=(total?100*completed/total:0)+'%';if(t.checked&&total&&completed===total){p.parentElement?.classList.remove('lj-progress-complete');void p.parentElement?.offsetWidth;p.parentElement?.classList.add('lj-progress-complete')}}if(t.checked){t.classList.remove('lj-set-checked');void t.offsetWidth;t.classList.add('lj-set-checked')}else t.classList.remove('lj-set-checked')}}});
 
 function backupRecord(v){return v&&typeof v==='object'&&!Array.isArray(v)}
 function validateBackupFile(parsed){
