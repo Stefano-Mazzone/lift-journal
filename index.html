@@ -1723,10 +1723,12 @@ function weightChart(entry){
 function hasFavorite(name){return data.favoriteMovements.some(x=>x.toLocaleLowerCase()===String(name||'').toLocaleLowerCase())}
 function toggleMovementFavorite(name){
  const value=String(name||'').trim();if(!value||value.length>90)return;
+ const previousFavorites=data.favoriteMovements.slice(),previousLast=lastFavorite;
  const i=data.favoriteMovements.findIndex(x=>x.toLocaleLowerCase()===value.toLocaleLowerCase());
  if(i>=0){data.favoriteMovements.splice(i,1);lastFavorite=null}
  else{data.favoriteMovements.push(value);lastFavorite=value.toLowerCase()}
- save();render();
+ if(!save()){data.favoriteMovements=previousFavorites;lastFavorite=previousLast;return}
+ render();
 }
 function movementFavoriteButton(name){
  const selected=hasFavorite(name);
