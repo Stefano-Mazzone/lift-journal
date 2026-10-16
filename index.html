@@ -1201,6 +1201,23 @@ async function mountCoachVerification(){
   if(status)status.textContent='Could not load verification. On-device planning is still available.';
  }
 }
+const COACH_DUMBBELL_EXERCISES=new Set([
+'Goblet Squat','Bodyweight Squat','Dumbbell Split Squat','Reverse Lunge',
+'Dumbbell Romanian Deadlift','Glute Bridge','Dumbbell Bench Press','Flat Dumbbell Bench Press',
+'Dumbbell Floor Press','Push-Up','Incline Dumbbell Press','Seated Dumbbell Shoulder Press',
+'Dumbbell Lateral Raise','One-Arm Dumbbell Row','Chest-Supported Dumbbell Row',
+'Dumbbell Curl','Hammer Curl','Plank','Side Plank','Dead Bug','Bird Dog',
+'Standing Dumbbell Calf Raise'
+]);
+const COACH_CABLE_EXERCISES=new Set([
+'Bodyweight Squat','Glute Bridge','Push-Up','Cable Fly','Seated Cable Row','Lat Pulldown',
+'Cable Face Pull','Cable Biceps Curl','Cable Triceps Pushdown','Triceps Rope Pressdown',
+'Cable Crunch','Plank','Side Plank','Dead Bug','Bird Dog','Pallof Press'
+]);
+function coachEquipmentAllowed(name,equipment){
+ return equipment==='dumbbells'?COACH_DUMBBELL_EXERCISES.has(name):
+  equipment==='cables'?COACH_CABLE_EXERCISES.has(name):true;
+}
 function safeCoachAIPlan(plan){
  if(!plan||!['session','program'].includes(plan.mode)||!Array.isArray(plan.days))return null;
  if(plan.days.length<1||plan.days.length>7||(plan.mode==='session'&&plan.days.length!==1))return null;
@@ -1214,7 +1231,7 @@ function safeCoachAIPlan(plan){
   const seen=new Set(),ex=[];
   for(const item of d.exercises){
    const name=String(item?.name||'').trim(),sets=Number(item?.sets),reps=String(item?.reps||'').trim();
-   if(!catalog.has(name.toLowerCase())||seen.has(name.toLowerCase())||!trainerEquipmentFit(name,plan.equipment)||
+   if(!catalog.has(name.toLowerCase())||seen.has(name.toLowerCase())||!coachEquipmentAllowed(name,plan.equipment)||!trainerEquipmentFit(name,plan.equipment)||
     !Number.isInteger(sets)||sets<1||sets>5||!/^\d{1,2}(?:\s*[-–]\s*\d{1,2})?$/.test(reps))return null;
    seen.add(name.toLowerCase());ex.push(X(name,sets,reps,90));
   }
