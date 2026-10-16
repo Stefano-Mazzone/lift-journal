@@ -225,14 +225,18 @@ function reopenWorkout(){
  s.previousFinishedAt=s.finished;s.finished=null;editingPast=false;save();render();toast('Workout reopened');
 }
 function newSession(){
- const a=selectedSlot?monthSchedule().find(x=>x.slot===selectedSlot):null;
- if(a){const existing=sessionForScheduledDay(a);if(existing){openWorkout(existing.key);toast('This workout already exists');return}}
- const [name,exercises]=planned(),id=Date.now()+'-'+Math.random().toString(36).slice(2,7);
- data.sessions[id]={month,day,cycleIndex:data.program.index,programNumber:data.program.number,
-  planSnapshot:JSON.parse(JSON.stringify(cycleFor(month))),unit:data.unit,slot:selectedSlot||null,
-  scheduledDate:a?.date||isoDate(new Date()),started:new Date().toISOString(),finished:null,
-  exercises:exercises.map(e=>({name:e.name,sets:Array.from({length:e.sets},()=>({reps:prescribedReps(e.reps),weight:'',done:false}))}))};
- save();editing=id;editingPast=false;selectedSlot=null;tab='train';render();
+ const workoutDate=selectedDate&&selectedDate.startsWith(month+'-')?selectedDate:isoDate(new Date());
+ const scheduled=selectedSlot?monthSchedule().find(a=>a.slot===selectedSlot&&a.date===workoutDate):null;
+ const already=Object.entries(data.sessions).find(([id,s])=>s&&scheduledWorkoutDate(s)===workoutDate);
+ if(already){openWorkout(already[0]);toast('There is already a workout saved for this date.');return}
+ const cycle=cycleFor(month),workoutDay=Number.isInteger(day)&&day>=0&&day<cycle.days.length?day:0;
+ const workout=cycle.days[workoutDay],id=Date.now()+'-'+Math.random().toString(36).slice(2,7);
+ if(scheduled){data.schedule[scheduled.slot]={...(data.schedule[scheduled.slot]||{}),day:workoutDay}}
+ data.sessions[id]={month:workoutDate.slice(0,7),day:workoutDay,cycleIndex:data.program.index,programNumber:data.program.number,
+  planSnapshot:JSON.parse(JSON.stringify(cycle)),unit:data.unit,slot:scheduled?.slot||null,
+  scheduledDate:workoutDate,started:new Date().toISOString(),finished:null,
+  exercises:workout[1].map(e=>({name:e.name,sets:Array.from({length:e.sets},()=>({reps:prescribedReps(e.reps),weight:'',done:false}))}))};
+ save();editing=id;editingPast=false;selectedDate=null;selectedSlot=null;tab='train';render();scrollTo(0,0);
 }
 function changeMovement(i,cmd){
  const s=data.sessions[editing],e=s&&s.exercises[i];if(!e||(s.finished&&!editingPast))return;
@@ -314,43 +318,67 @@ function fullMonthCalendar(ss,sessions){
   ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(w=>'<div class="calendar-weekday">'+w+'</div>').join('')+cells+
   '</div><p class="note">Tap any date to choose Workout A, B or C. The colours show planned, completed, skipped or in-progress workouts.</p>';
 }
-function scheduleView(){
- const sessions=getSessions(),ss=monthSchedule();
- const rows=ss.map(a=>{
-  const logged=sessionForScheduledDay(a,sessions),status=logged?.finished?'Completed':logged?'In progress':a.status==='skipped'?'Skipped':a.date!==a.original?'Moved':'Planned';
-  const actions=logged?
-   '<button class="btn tiny secondary" data-open="'+esc(logged.key)+'">'+(logged.finished?'View':'Resume')+'</button>':
-   '<button class="btn tiny secondary" data-slot="'+esc(a.slot)+'" data-plan-day="'+a.day+'">Select</button>'+
-   '<button class="btn tiny '+(a.status==='skipped'?'secondary':'danger')+'" data-skip="'+esc(a.slot)+'">'+(a.status==='skipped'?'Restore':'Skip')+'</button>';
-  return '<div class="schedule-row"><div><strong>'+new Date(a.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+
-   ' · Workout '+ 'ABC'[a.day]+'</strong><div class="note">'+status+(a.date!==a.original?' · originally '+a.original:'')+'</div></div>'+
-   '<div class="row" style="justify-content:flex-end;flex-wrap:wrap">'+actions+'</div></div>';
- }).join('');
- let panel='';
- if(selectedSlot){
-  const a=ss.find(x=>x.slot===selectedSlot);
-  if(a){
-   const logged=sessionForScheduledDay(a,sessions);
-   if(logged){
-    panel='<div class="move-panel"><h3>Workout '+'ABC'[a.day]+' · '+esc(a.date)+'</h3>'+
-     '<p class="muted">'+(logged.finished?'This workout was completed.':'This workout is in progress.')+' Your saved session is available below.</p>'+
-     '<div class="row" style="flex-wrap:wrap">'+
-     '<button class="btn" data-open="'+esc(logged.key)+'">'+(logged.finished?'View completed workout':'Resume this workout')+'</button>'+
-     (logged.finished?'<button class="btn secondary" data-edit-session="'+esc(logged.key)+'">Edit workout</button>':'')+'</div></div>';
-   }else{
-    const max=String(new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate()).padStart(2,'0');
-    panel='<div class="move-panel"><h3>Workout '+'ABC'[a.day]+' · '+esc(a.date)+'</h3>'+
-     '<label class="input-label" for="move-date">Move this session to another date in '+labelMonth(month)+'</label>'+
-     '<input id="move-date" type="date" value="'+a.date+'" min="'+month+'-01" max="'+month+'-'+max+'">'+
-     '<div class="row" style="margin-top:10px;flex-wrap:wrap">'+button('Save date','move','secondary')+button('Start this workout','start')+'</div></div>';
-   }
-  }
+
+function selectedWorkoutPicker(ss,sessions){
+ if(!selectedDate||!selectedDate.startsWith(month+'-'))return '';
+ const when=new Date(selectedDate+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+ const slot=ss.find(a=>a.date===selectedDate&&a.slot===selectedSlot)||ss.find(a=>a.date===selectedDate);
+ const existing=Object.entries(data.sessions).filter(([id,s])=>s&&scheduledWorkoutDate(s)===selectedDate);
+ const headline='<h3>'+esc(when)+'</h3>';
+ if(existing.length){
+  return '<section class="workout-day-picker" id="selected-workout-picker"><span class="workout-picker-step">SAVED WORKOUT</span>'+headline+
+   '<p class="note">A workout already exists on this date. Open it instead of creating a duplicate.</p>'+
+   existing.map(([id,s])=>'<div class="workout-picker-saved-row"><div><strong>'+esc(cycleForSession(s)?.days?.[s.day]?.[0]||'Workout')+
+   '</strong><div class="note">'+(s.finished?'Completed':'In progress')+'</div></div>'+
+   '<button class="btn secondary" data-open="'+esc(id)+'">'+(s.finished?'View':'Resume')+'</button></div>').join('')+'</section>';
  }
- return '<section class="card"><div class="row"><div><h2 style="margin:0">Your workout calendar</h2>'+
-  '<span class="note">Select a day to start, resume, or view its saved workout. Unstarted sessions can be moved or skipped.</span></div></div>'+
-  fullMonthCalendar(ss,sessions)+rows+(ss.length?'':'<p class="muted">No sessions scheduled this month.</p>')+panel+'</section>';
+ if(slot?.status==='skipped')return '<section class="workout-day-picker" id="selected-workout-picker"><span class="workout-picker-step">SKIPPED WORKOUT</span>'+headline+
+  '<p class="note">Restore this day before starting its workout.</p>'+
+  '<button class="btn secondary" data-skip="'+esc(slot.slot)+'">Restore workout</button></section>';
+ const options=cycleFor(month).days,chosen=Number.isInteger(day)&&day>=0&&day<options.length?day:0,selection=options[chosen]||options[0];
+ const buttons=options.map((option,i)=>{
+  const active=chosen===i;
+  return '<button type="button" class="workout-option'+(active?' active':'')+'" data-workout-choice="'+i+'" aria-pressed="'+active+'">'+
+   '<span class="workout-option-letter">'+esc('ABC'[i]||String(i+1))+'</span>'+
+   '<span class="workout-option-text"><strong>'+esc(option[0])+'</strong><small>'+option[1].length+' exercises · '+
+   option[1].reduce((n,e)=>n+Number(e.sets||0),0)+' planned sets</small></span>'+
+   '<span class="workout-option-indicator">'+(active?'✓':'○')+'</span></button>';
+ }).join('');
+ const preview=selection?selection[1].map(e=>'<div class="workout-exercise-preview"><span>'+esc(e.name)+
+  '</span><strong>'+e.sets+' × '+esc(e.reps)+'</strong></div>').join(''):'';
+ let secondary='';
+ if(slot){
+  const max=String(new Date(Number(month.slice(0,4)),Number(month.slice(5)),0).getDate()).padStart(2,'0');
+  secondary='<details class="workout-move-options"><summary>Reschedule or skip this day</summary>'+
+   '<label class="input-label" for="move-date">Move to another date</label>'+
+   '<input id="move-date" type="date" value="'+slot.date+'" min="'+month+'-01" max="'+month+'-'+max+'">'+
+   '<div class="workout-move-buttons">'+button('Save new date','move','secondary')+
+   '<button class="btn secondary" data-skip="'+esc(slot.slot)+'">Skip this workout</button></div></details>';
+ }
+ return '<section class="workout-day-picker" id="selected-workout-picker"><span class="workout-picker-step">STEP 1 · CHOOSE YOUR WORKOUT</span>'+headline+
+  '<p class="note">'+(slot?'The planned workout is preselected. You can choose a different workout.':'No workout was planned for this day. Choose one from your program.')+'</p>'+
+  '<div class="workout-choices" role="group" aria-label="Choose workout type">'+buttons+'</div>'+
+  '<div class="workout-picker-preview"><span class="workout-picker-step">STEP 2 · PREVIEW</span><h4>'+esc(selection?.[0]||'Workout')+'</h4>'+preview+'</div>'+
+  '<button type="button" class="btn workout-picker-start" data-action="start">Start '+esc(selection?.[0]||'workout')+' →</button>'+
+  '<p class="note">You can change the suggested reps, sets and weights while logging.</p>'+secondary+'</section>';
 }
-function home(){let c=cycleFor(month),ss=Object.values(data.sessions).filter(x=>x.programNumber===data.program.number&&x.finished);return header(`<h1>Your training plan</h1><p class="sub">Repeat the same routine as long as you need. You decide when to change programs.</p>`)+monthControl()+`<section class="card hero"><div class="eyebrow">PROGRAM ${data.program.number} · ${esc(c.label)}</div><h2 style="margin-top:8px">${esc(c.focus)}</h2><p class="muted" style="margin:0">Repeat workouts A, B and C each week on your chosen days. Reschedule or skip individual sessions using your calendar below.</p><div class="progress"><div style="width:${Math.min(100,ss.filter(x=>x.finished).length/12*100)}%"></div></div><span class="note">${ss.filter(x=>x.finished).length} completed sessions in this program · suggested target 12</span><div style="margin-top:15px">${button('Start next program →','advance','secondary')}</div><p class="note">No automatic changes at month-end. Continue this program for as many weeks as you like.</p></section>${scheduleView()}<h2>Choose your workout</h2>${dayCards()}<section class="card"><div class="row"><div><h3>Workout ${'ABC'[day]} preview</h3><span class="hint">Sets × rep target</span></div>${button('Start','start')}</div>${c.days[day][1].map(e=>`<div class="row" style="border-top:1px solid var(--line);padding:11px 0"><div class="exercise-summary"><div class="exercise-summary-title">${esc(e.name)}</div>${previousPreview(e)}</div><strong style="white-space:nowrap">${e.sets} × ${esc(e.reps)}</strong></div>`).join('')}</section><p class="note">Suggested beginner-to-intermediate plan. Start with manageable weights and maintain good form. Rep targets are ranges, not required minimums.</p>`}
+function scheduleView(){
+ const ss=monthSchedule(),sessions=getSessions();
+ const rows=ss.map(a=>{
+  const logged=sessionForScheduledDay(a,sessions),status=logged?.finished?'Completed':logged?'In progress':a.status==='skipped'?'Skipped':'Planned';
+  return '<div class="schedule-row"><div><strong>'+new Date(a.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+
+   ' · Workout '+esc('ABC'[a.day]||'?')+'</strong><div class="note">'+status+'</div></div>'+
+   '<div class="row">'+(logged?'<button class="btn tiny secondary" data-open="'+esc(logged.key)+'">'+(logged.finished?'View':'Resume')+'</button>':
+   '<button class="btn tiny secondary" data-slot="'+esc(a.slot)+'" data-plan-day="'+a.day+'">Choose</button>'+
+   '<button class="btn tiny '+(a.status==='skipped'?'secondary':'danger')+'" data-skip="'+esc(a.slot)+'">'+(a.status==='skipped'?'Restore':'Skip')+'</button>')+'</div></div>';
+ }).join('');
+ return '<section class="card"><h2>Your workout calendar</h2><p class="note">Tap any date, select Workout A, B or C, then start.</p>'+
+  fullMonthCalendar(ss,sessions)+selectedWorkoutPicker(ss,sessions)+
+  '<details class="schedule-details"><summary>Manage scheduled workouts ('+ss.length+')</summary>'+
+  '<p class="note">Move, skip, restore or view a planned session.</p>'+
+  (rows||'<p class="muted">No planned workouts in this month.</p>')+'</details></section>';
+}
+function home(){let c=cycleFor(month),ss=Object.values(data.sessions).filter(x=>x.programNumber===data.program.number&&x.finished);return header(`<h1>Your training plan</h1><p class="sub">Repeat the same routine as long as you need. You decide when to change programs.</p>`)+monthControl()+`<section class="card hero"><div class="eyebrow">PROGRAM ${data.program.number} · ${esc(c.label)}</div><h2 style="margin-top:8px">${esc(c.focus)}</h2><p class="muted" style="margin:0">Repeat workouts A, B and C each week on your chosen days. Reschedule or skip individual sessions using your calendar below.</p><div class="progress"><div style="width:${Math.min(100,ss.filter(x=>x.finished).length/12*100)}%"></div></div><span class="note">${ss.filter(x=>x.finished).length} completed sessions in this program · suggested target 12</span><div style="margin-top:15px">${button('Start next program →','advance','secondary')}</div><p class="note">No automatic changes at month-end. Continue this program for as many weeks as you like.</p></section>${scheduleView()}<p class="note">Tap a date to preview, choose and start a workout. Your saved sessions are preserved.</p>`}
 function sessionView(){
  const s=data.sessions[editing];if(!s){editing=null;return train()}
  const c=cycleForSession(s),def=c.days[s.day][1],active=s.exercises.filter(e=>!e.skipped);
@@ -386,8 +414,13 @@ function sessionView(){
  '<div class="stack">'+(blankReps?button('Fill missing reps from plan','fill-missing-reps','secondary'):'')+button('Finish & save workout','finish')+'</div>')+'</section>';
  return output;
 }
-function train(){if(editing&&data.sessions[editing])return sessionView();let active=findActive(),c=cycleFor(month);return header(`<h1>Train</h1><p class="sub">Start a scheduled workout, select another day, or pick up where you left off.</p>`)+monthControl()+(active?`<div class="card hero"><h2>Unfinished workout</h2><p class="muted">Started ${new Date(active.started).toLocaleString()}</p>${button('Resume session','resume')}</div>`:'')+scheduleView()+dayCards()+`<section class="card"><h2>${esc(c.days[day][0])}</h2>${c.days[day][1].map(e=>`<div class="row" style="border-top:1px solid var(--line);padding:11px 0"><div class="exercise-summary"><div class="exercise-summary-title">${esc(e.name)}</div>${previousPreview(e)}</div><strong style="white-space:nowrap">${e.sets} × ${esc(e.reps)}</strong></div>`).join('')}${button('Start new workout','start')}</section>`}
-
+function train(){
+ if(editing&&data.sessions[editing])return sessionView();
+ const active=findActive();
+ return header('<h1>Train</h1><p class="sub">Select a calendar date and choose a workout before starting.</p>')+monthControl()+
+  (active?'<section class="card hero"><h2>Unfinished workout</h2><p class="muted">Started '+new Date(active.started).toLocaleString()+'</p>'+
+   button('Resume session','resume')+'</section>':'')+scheduleView();
+}
 let tonnagePeriod='week',tonnageUnit=null;
 
 /* A set with numeric reps and weight is an actual logged set, even if the user
