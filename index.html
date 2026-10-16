@@ -1337,7 +1337,7 @@ function exerciseAlternatives(name,limit=8,profile=data.trainerProfile){
    sameGroup?'Same Muscle Group':'Other Exercise';
   return {...r,score,reason,equipmentFit,cautions,currentConcern};
  })
- .filter(r=>r.score>=25&&!r.currentConcern&&r.equipmentFit)
+ .filter(r=>r.score>=25&&!r.currentConcern&&r.equipmentFit&&trainerCanUse(r.name,profile||{}))
  .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
 const TRAINER_LIMIT_AREAS=[['knee','Knee'],['hip','Hip / Groin'],['ankle','Ankle / Foot'],['back','Lower Back'],['shoulder','Shoulder'],['elbow','Elbow / Wrist'],['neck','Neck']];
@@ -1347,10 +1347,9 @@ function painScore(value){const v=Number(value);return Number.isInteger(v)&&v>=0
 function painLevelsFor(profile){
  const output={},p=profile||{};
  for(const [id] of TRAINER_LIMIT_AREAS){
-  if(p.painLevels&&Object.prototype.hasOwnProperty.call(p.painLevels,id)){
-   output[id]=painScore(p.painLevels[id]);continue;
-  }
-  if(Array.isArray(p.limits)&&p.limits.includes(id))output[id]=p.limitStatus==='current'?4:0;
+  if(p.painLevels&&typeof p.painLevels==='object'&&!Array.isArray(p.painLevels)){
+   if(Object.prototype.hasOwnProperty.call(p.painLevels,id))output[id]=painScore(p.painLevels[id]);
+  }else if(Array.isArray(p.limits)&&p.limits.includes(id))output[id]=p.limitStatus==='current'?4:0;
  }
  return output;
 }
@@ -1397,9 +1396,15 @@ function trainerAreaRisk(name,area){
  if(area==='neck')return /overhead|neck|shrug|back squat|front squat|shoulder press/.test(v);
  return false;
 }
+function trainerAreaAffected(name,area){
+ const group=identifyExercise(name).group;
+ return trainerAreaRisk(name,area)||
+  (['knee','hip','ankle'].includes(area)&&group==='legs')||
+  (area==='shoulder'&&group==='push');
+}
 function trainerCaution(name,profile=data.trainerProfile){
  const levels=painLevelsFor(profile);
- return Object.keys(levels).filter(area=>levels[area]>0&&trainerAreaRisk(name,area))
+ return Object.keys(levels).filter(area=>levels[area]>0&&trainerAreaAffected(name,area))
  .map(a=>(TRAINER_LIMIT_AREAS.find(x=>x[0]===a)?.[1]||a)+' ('+levels[a]+'/10)');
 }
 function trainerEquipmentFit(name,equipment){
@@ -1426,13 +1431,7 @@ const TRAINER_EQUIPMENT_POOLS={
 function trainerCanUse(name,profile){
  if(!trainerEquipmentFit(name,profile?.equipment))return false;
  const normalized=painProfile(profile);
- const symptomatic=Object.entries(normalized.painLevels).filter(([area,n])=>n>0).map(([area])=>area);
- if(!symptomatic.length)return true;
- const group=identifyExercise(name).group;
- if(symptomatic.some(area=>['knee','hip','ankle'].includes(area))&&group==='legs')return false;
- if(symptomatic.includes('shoulder')&&group==='push')return false;
- if(symptomatic.some(area=>trainerAreaRisk(name,area)))return false;
- return true;
+ return !Object.keys(normalized.painLevels).some(area=>normalized.painLevels[area]>0&&trainerAreaAffected(name,area));
 }
 function trainerChoose(group,profile,index,used){
  const pool=TRAINER_EQUIPMENT_POOLS[profile.equipment]?.[group]||TRAINER_POOLS[group]||[];
