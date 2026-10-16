@@ -393,7 +393,7 @@ h1{font-weight:750}h2{font-weight:710}
 .coach-preview-ex{display:flex;gap:12px;justify-content:space-between;padding:5px 0;font-size:13px}
 .coach-preview-ex span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
 .coach-preview-ex span:last-child{flex:none;font-weight:700}
-</style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
+</style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Program changes are manual. Each program repeats A/B/C until the user advances.
@@ -1135,8 +1135,149 @@ function sessionView(){
 }
 // Request-based workout planning runs locally. This is NOT a hosted language model.
 let coachMessages=[{who:'coach',text:'Tell me what you want to train. For example: "Build a 3-day muscle program with dumbbells" or "Give me a 30-minute upper-body workout today". I can prepare a plan for review.'}];
-let coachRequest=null,coachBusy=false;
+let coachRequest=null,coachBusy=false,coachAiPlan=null,coachPreviousAiPlan=null,coachPendingPlan=null,coachSessionSuggestion=null,coachTurnstileId=null,coachTurnstileLoader=null,coachRun=0,coachLastInput='';
 const COACH_MAX_MESSAGES=16;
+
+function coachAISettings(){
+ const config=window.LIFT_JOURNAL_AI||{};
+ const endpoint=String(config.endpoint||'').trim().replace(/\/+$/,'');
+ const turnstileSiteKey=String(config.turnstileSiteKey||'').trim();
+ try{
+  const url=new URL(endpoint);
+  if(url.protocol!=='https:'||!turnstileSiteKey||turnstileSiteKey.length>150)return null;
+  if(!/^[a-zA-Z0-9._:-]+$/.test(url.host)||url.pathname!=='/')return null;
+  return {endpoint:url.origin,turnstileSiteKey};
+ }catch{return null}
+}
+function removeCoachVerification(){
+ if(coachTurnstileId!==null&&window.turnstile){
+  try{window.turnstile.remove(coachTurnstileId)}catch(e){}
+ }
+ coachTurnstileId=null;
+}
+function loadCoachVerification(){
+ if(window.turnstile?.render)return Promise.resolve();
+ if(coachTurnstileLoader)return coachTurnstileLoader;
+ coachTurnstileLoader=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.async=true;script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  let done=false;
+  const timer=setTimeout(()=>finish(Error('Verification did not load')),12000);
+  const finish=error=>{
+   if(done)return;done=true;clearTimeout(timer);
+   if(error){script.remove();reject(error)}else resolve();
+  };
+  script.onload=()=>window.turnstile?.render?finish():finish(Error('Verification unavailable'));
+  script.onerror=()=>finish(Error('Verification script unavailable'));
+  document.head.appendChild(script);
+ }).catch(e=>{coachTurnstileLoader=null;throw e});
+ return coachTurnstileLoader;
+}
+async function mountCoachVerification(){
+ const settings=coachAISettings();
+ if(!settings||tab!=='coach')return;
+ const element=document.getElementById('coach-challenge');
+ if(!element)return;
+ try{
+  await loadCoachVerification();
+  if(tab!=='coach'||!document.getElementById('coach-challenge')||coachTurnstileId!==null)return;
+  coachTurnstileId=window.turnstile.render('#coach-challenge',{
+   sitekey:settings.turnstileSiteKey,theme:'auto',size:'flexible',
+   callback:()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification complete. Ready to ask the AI.'},
+   'expired-callback':()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification expired. Please verify again.'},
+   'error-callback':()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification failed. Refresh or use on-device planning.'}
+  });
+ }catch{
+  const status=document.getElementById('coach-verify-status');
+  if(status)status.textContent='Could not load verification. On-device planning is still available.';
+ }
+}
+function safeCoachAIPlan(plan){
+ if(!plan||!['session','program'].includes(plan.mode)||!Array.isArray(plan.days))return null;
+ if(plan.days.length<1||plan.days.length>7||(plan.mode==='session'&&plan.days.length!==1))return null;
+ if(!['all','dumbbells','cables'].includes(plan.equipment)||
+  !['muscle','strength','general'].includes(plan.goal)||
+  !['upper','lower','full'].includes(plan.focus)||![20,30,45,60].includes(plan.minutes))return null;
+ const catalog=new Set(catalogWithUserExercises().map(e=>e.name.toLowerCase()));
+ const days=[];
+ for(const d of plan.days){
+  if(!d||typeof d.title!=='string'||!Array.isArray(d.exercises)||d.exercises.length<2||d.exercises.length>6)return null;
+  const seen=new Set(),ex=[];
+  for(const item of d.exercises){
+   const name=String(item?.name||'').trim(),sets=Number(item?.sets),reps=String(item?.reps||'').trim();
+   if(!catalog.has(name.toLowerCase())||seen.has(name.toLowerCase())||!trainerEquipmentFit(name,plan.equipment)||
+    !Number.isInteger(sets)||sets<1||sets>5||!/^\d{1,2}(?:\s*[-–]\s*\d{1,2})?$/.test(reps))return null;
+   seen.add(name.toLowerCase());ex.push(X(name,sets,reps,90));
+  }
+  days.push([String(d.title).slice(0,65),ex]);
+ }
+ return {mode:plan.mode,title:String(plan.title||'AI workout').slice(0,65),
+  equipment:plan.equipment,goal:plan.goal,minutes:plan.minutes,focus:plan.focus,
+  days:days.map(([title,exercises])=>({title,exercises}))};
+}
+function coachOfflineFallback(){
+ if(!coachLastInput||coachBusy)return;
+ const answer=coachReplyToRequest(coachLastInput);
+ coachAiPlan=null;coachRequest=answer.request;
+ coachMessages.push({who:'coach',text:'On-device suggestion: '+answer.reply});
+ coachMessages=coachMessages.slice(-COACH_MAX_MESSAGES);
+ render();
+}
+async function coachAskAI(message){
+ const settings=coachAISettings();
+ if(!settings)return false;
+ if(coachBusy)return true;
+ const token=coachTurnstileId!==null?window.turnstile?.getResponse(coachTurnstileId):null;
+ if(!token){
+  const status=document.getElementById('coach-verify-status');
+  if(status)status.textContent='Complete the verification before sending an AI request.';
+  return true;
+ }
+ const text=String(message||'').trim();
+ if(!text||text.length>500)return true;
+ if(/\b(chest pain|faint|dizzy|dizziness|injur(?:y|ed)|pain|surgery|rehabilitation|breathlessness)\b/i.test(text)){
+  coachMessages.push({who:'you',text},{who:'coach',text:'I cannot assess medical symptoms or injuries. Use the readiness check and seek qualified advice when appropriate.'});
+  coachRequest=null;coachAiPlan=null;render();return true;
+ }
+ const id=++coachRun;coachBusy=true;coachLastInput=text;
+ coachMessages.push({who:'you',text});
+ coachMessages=coachMessages.slice(-COACH_MAX_MESSAGES);
+ const history=coachMessages.filter(m=>['coach','you'].includes(m.who)).slice(-6).map(m=>({role:m.who==='you'?'user':'assistant',content:m.text.slice(0,500)}));
+ render();
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),26000);
+ try{
+  const pref={...trainerDefaultPrefs(),...(data.trainerProfile||{})};
+  const res=await fetch(settings.endpoint+'/chat',{method:'POST',
+   headers:{'Content-Type':'application/json'},signal:controller.signal,
+   body:JSON.stringify({messages:history,turnstileToken:token,
+    previousPlan:coachPreviousAiPlan,
+    context:{goal:pref.goal,equipment:pref.equipment,minutes:pref.minutes,
+     days:data.weekdays?.length||3,experience:pref.experience}})});
+  const payload=await res.json().catch(()=>({}));
+  if(!res.ok)throw Error(String(payload.error||'AI request failed').slice(0,220));
+  if(id!==coachRun)return true;
+  coachAiPlan=safeCoachAIPlan(payload.plan);
+  if(coachAiPlan){
+   coachPreviousAiPlan=payload.plan;
+   coachRequest={intent:coachAiPlan.mode,goal:coachAiPlan.goal,equipment:coachAiPlan.equipment,
+    minutes:coachAiPlan.minutes,days:coachAiPlan.days.length,focus:coachAiPlan.focus,
+    favoriteOnly:false,light:false};
+  }else coachRequest=null;
+  coachMessages.push({who:'coach',text:String(payload.reply||'Please try clarifying your request.').slice(0,420)});
+ }catch(error){
+  if(id!==coachRun)return true;
+  coachRequest=null;coachAiPlan=null;
+  const reason=error.name==='AbortError'?'AI request timed out.':error.message||'AI request failed.';
+  coachMessages.push({who:'coach',text:reason+' You can use the on-device planner below.'});
+ }finally{
+  clearTimeout(timer);
+  if(id===coachRun){
+   coachBusy=false;coachMessages=coachMessages.slice(-COACH_MAX_MESSAGES);render();
+   document.getElementById('coach-latest')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+ }
+ return true;
+}
 function coachMinutes(text,fallback=45){
  const match=text.match(/\b(\d{1,3})[\s-]*(?:min(?:ute)?s?|mins?)\b/i)||
    text.match(/\b(?:for|in)\s+(\d{1,3})\s*m\b/i);
@@ -1227,9 +1368,14 @@ function coachReplyToRequest(message){
  const target=parsed.intent==='program'?parsed.days+'-day weekly program':'workout for today';
  return {request:parsed,reply:'Here is a '+target+' using '+equipmentName+' and about '+parsed.minutes+' minutes per session. Review the exercise preview below. Nothing has been added to your program or workout history.'};
 }
-function coachSendRequest(message){
+async function coachSendRequest(message){
  const text=String(message||'').trim();
  if(!text||coachBusy)return;
+ if(coachAISettings()){
+  await coachAskAI(text);
+  return;
+ }
+ coachLastInput=text;coachAiPlan=null;coachPreviousAiPlan=null;
  coachMessages.push({who:'you',text:text.slice(0,500)});
  const result=coachReplyToRequest(text);
  coachRequest=result.request;
