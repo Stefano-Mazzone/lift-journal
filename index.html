@@ -2187,42 +2187,50 @@ function barcodeCameraError(error){
  return 'Camera scanner could not start: '+(error?.message||String(error));
 }
 async function startBarcodeCamera(){
- if(!navigator.mediaDevices?.getUserMedia){updateBarcodeMessage('Camera access is unavailable in this browser. Try '+(gymIsAndroid()?'Chrome on Android':'Safari on iPhone')+', take a barcode photo below, or enter the digits.');return}
+ if(!navigator.mediaDevices?.getUserMedia){
+  updateBarcodeMessage('Camera unavailable in this browser. Try Safari on iPhone, a barcode photo, or manual entry.');
+  return;
+ }
  stopBarcodeCamera();
  const token=++barcodeScanToken;
- updateBarcodeMessage('Loading barcode scanner…');
+ updateBarcodeMessage('Requesting camera permission…');
  try{
-  await loadBarcodeLibrary();
-  if(token!==barcodeScanToken||tab!=='calories')return;
-  const video=document.getElementById('barcode-video');
-  if(!video)throw Error('Camera preview not available');
-  // Ask for permission without replacing the page: Home Screen apps may dismiss
-  // the native prompt if their DOM is torn down while waiting for a response.
-  updateBarcodeMessage('Requesting camera permission…');
+  // Request the camera immediately from the button tap before loading the scanner script.
   const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
   if(token!==barcodeScanToken||tab!=='calories'){stream.getTracks().forEach(t=>t.stop());return}
   cameraStream=stream;
+  const video=document.getElementById('barcode-video');
+  if(!video)throw Error('Camera preview unavailable');
   video.setAttribute('playsinline','');
   video.setAttribute('webkit-playsinline','');
   video.style.display='block';
   video.srcObject=stream;
   await video.play();
   if(token!==barcodeScanToken)return;
-  updateBarcodeMessage('Point your camera at the barcode. Hold steady and keep it inside the frame.');
-  const reader=new window.ZXing.BrowserMultiFormatReader();
+  updateBarcodeMessage('Keep the barcode horizontal, fully visible, and in focus. Move closer or farther if needed.');
+  await loadBarcodeLibrary();
+  if(token!==barcodeScanToken||tab!=='calories')return;
+  const Z=window.ZXing;
+  const formats=[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E];
+  const hints=new Map([[Z.DecodeHintType.POSSIBLE_FORMATS,formats]]);
+  const reader=new Z.BrowserMultiFormatReader(hints,350);
   zxingReader=reader;
   await reader.decodeFromVideoElementContinuously(video,(result,error)=>{
-   if(token!==barcodeScanToken||!result)return;
-   const raw=result.getText?.()||String(result.text||'');
-   const barcode=raw.replace(/[^0-9]/g,'');
-   if(!/^\d{8,14}$/.test(barcode))return;
-   stopBarcodeCamera();
-   lookupBarcode(barcode);
+   if(token!==barcodeScanToken)return;
+   if(result){
+    const barcode=String(result.getText?.()||result.text||'').trim();
+    if(!/^\d{8,14}$/.test(barcode))return;
+    stopBarcodeCamera();
+    lookupBarcode(barcode);
+   }else if(error&&!['NotFoundException','ChecksumException','FormatException'].includes(error.name)){
+    stopBarcodeCamera();
+    updateBarcodeMessage('Scanner stopped: '+(error.message||'Unexpected error')+'. Try taking a photo or entering the number.');
+   }
   });
  }catch(error){
   if(token!==barcodeScanToken)return;
   stopBarcodeCamera();
-  updateBarcodeMessage(barcodeCameraError(error)+' You can also take a photo or enter the barcode manually.');
+  updateBarcodeMessage(barcodeCameraError(error)+' You can also take a photo or enter the digits.');
  }
 }
 async function scanBarcodePhoto(file){
