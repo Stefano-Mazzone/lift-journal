@@ -126,9 +126,18 @@ export default {
    (old?'Previous plan to refine: '+JSON.stringify(old):'No previous plan.')+'\nReturn valid JSON only.'});
   try{
    const output=await env.AI.run(MODEL,{messages:[{role:'system',content:SYSTEM},...history],
-    max_tokens:1250,temperature:0.3,chat_template_kwargs:{enable_thinking:false}});
+    max_tokens:1850,temperature:0.3,chat_template_kwargs:{enable_thinking:false}});
    const parsed=parseAI(output?.response??output?.choices?.[0]?.message?.content??output);
-   return respond({reply:trim(parsed.reply,420)||'Here is a workout proposal for your review.',plan:validatedPlan(parsed)});
+   const proposed=validatedPlan(parsed);
+   const requestedDays=messages.at(-1).content.match(/\b([1-7])[\s-]*day(?:s)?\b/i);
+   const asksDumbbells=/\b(dumbbell|dumbbells|db only)\b/i.test(messages.at(-1).content);
+   const asksCables=/\b(cable|cables)\b/i.test(messages.at(-1).content);
+   if(proposed&&requestedDays&&proposed.mode==='program'&&proposed.days.length!==Number(requestedDays[1]))
+    return respond({reply:'The AI did not match the requested number of training days. Please ask it to try again.',plan:null});
+   if(proposed&&((asksDumbbells&&!asksCables&&proposed.equipment!=='dumbbells')||
+     (asksCables&&!asksDumbbells&&proposed.equipment!=='cables')))
+    return respond({reply:'The AI did not match the requested equipment. Please ask it to retry.',plan:null});
+   return respond({reply:trim(parsed.reply,420)||'Here is a workout proposal for your review.',plan:proposed});
   }catch{
    return respond({error:'AI is temporarily unavailable or the free daily allowance is exhausted.'},503);
   }
