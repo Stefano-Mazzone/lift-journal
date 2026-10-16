@@ -10,30 +10,34 @@ Lift Journal remains hosted on GitHub Pages. A separate Cloudflare Worker runs t
 
 No paid API key is required for a basic free-tier deployment. You must monitor Cloudflare Workers AI free limits and any changing plan requirements. See [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) for current pricing and quotas.
 
-## Deploy
+## Browser-only setup (recommended, including iPhone)
 
-1. In Cloudflare's Dashboard, go to **Turnstile** and create a widget for the exact hostname \`stefano-mazzone.github.io\`. Copy the **public site key** and the **private secret key**. Do not put the secret in GitHub.
-2. Clone the GitHub repository locally, or download its source. In a terminal:
-   \`\`\`bash
-   cd lift-journal/worker
-   npx wrangler login
-   npx wrangler secret put TURNSTILE_SECRET
-   \`\`\`
-   Paste the **private** Turnstile secret into the secure prompt. Wrangler stores this outside GitHub.
-3. Deploy:
-   \`\`\`bash
-   npx wrangler deploy
-   \`\`\`
-   Cloudflare will print your public Worker URL, for example \`https://lift-journal-coach.<your-subdomain>.workers.dev\`. No domain purchase is required.
-4. In repository root \`coach-config.js\`, set:
-   \`\`\`js
-   window.LIFT_JOURNAL_AI = {
-     endpoint: "https://lift-journal-coach.<your-subdomain>.workers.dev",
-     turnstileSiteKey: "<your-public-site-key>"
-   };
-   \`\`\`
-   Commit **only** this public configuration file to GitHub. Never commit the secret.
-5. Allow GitHub Pages to publish the changed \`coach-config.js\`. Open Lift Journal → **Coach**, complete the verification widget, and request a workout. The app should display the mode as **Cloudflare AI**.
+Cloudflare has a **GitHub integration**, so you do **not** need a local terminal.
+
+1. Open [Cloudflare dashboard](https://dash.cloudflare.com/) and register or sign in to a **Free** account.
+2. Go to **Workers & Pages → Create application → GitHub** (the exact button label may vary). Authorize GitHub and select **Stefano-Mazzone/lift-journal**.
+3. Choose Worker name **lift-journal-coach** to match `worker/wrangler.json`. Set **Root directory** to `worker` and **Deploy command** to `npx wrangler deploy`. Leave the build command blank if allowed, then deploy.
+4. Inside the new Worker, go to **Settings → Variables and Secrets** and create a **Secret** named `TURNSTILE_SECRET`. You will get its value in the next step.
+5. Go to **Cloudflare → Turnstile**, create a widget that allows **stefano-mazzone.github.io**, and copy its *public site key* and *private secret*. Paste the **private secret** into the Worker's `TURNSTILE_SECRET` setting. Never share it in chat, GitHub, or a public file.
+6. Cloudflare will show a public Worker URL resembling `https://lift-journal-coach.<your-subdomain>.workers.dev`. Edit [coach-config.js](https://github.com/Stefano-Mazzone/lift-journal/blob/main/coach-config.js) in GitHub to set **endpoint** to that URL and **turnstileSiteKey** to your *public* site key.
+7. When GitHub Pages publishes the change, open Lift Journal → **Coach**. Complete the verification and submit a workout request. The Cloudflare AI will be connected. Your existing on-device coach is always available if the Worker is unavailable.
+
+If the Worker reports "AI not configured," confirm that the **Workers AI** and **COACH_RATE_LIMIT** bindings have been created from `wrangler.json`, and that `TURNSTILE_SECRET` exists in Worker settings. Cloudflare Builds deploys on new GitHub pushes, but the Worker is not live until the initial Cloudflare deployment succeeds.
+
+[Cloudflare GitHub deployment guide](https://developers.cloudflare.com/workers/ci-cd/builds/)
+
+## Alternative setup with Wrangler CLI
+
+You can also deploy from a computer:
+
+```bash
+cd lift-journal/worker
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret put TURNSTILE_SECRET
+```
+
+After deployment, configure the same public Worker endpoint and public Turnstile site key in the repository's `coach-config.js`. Never put the private secret there.
 
 ## Important security and behavior notes
 
