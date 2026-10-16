@@ -424,11 +424,11 @@ function gymLocator(){
  const list=gymResults.map(g=>'<div class="calorie-entry"><div><strong>'+esc(g.name)+'</strong><div class="note">'+(g.distance==null?'':g.distance.toFixed(1)+' km away · ')+esc(g.address||'Address not provided')+'</div></div><div class="gym-map-links"><a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://maps.apple.com/?daddr='+encodeURIComponent(g.lat+','+g.lon)+'">Apple Maps</a><a class="btn tiny secondary" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(g.lat+','+g.lon)+'">Google Maps</a></div></div>').join('');
  return header('<h1>Gym Locator</h1><p class="sub">Find gyms and fitness centres around you or in another city.</p>')+
  '<section class="card"><h2>Find nearby gyms</h2><p class="note">Location permission is optional. Searches use OpenStreetMap community listings, which may be incomplete. Always verify opening hours and membership details.</p>'+
- '<button class="btn" data-action="gym-near" '+(gymBusy?'disabled':'')+'>📍 Use my location</button>'+
+ '<button class="btn" data-action="gym-near" '+(gymBusy?'disabled':'')+'>📍 Use my location</button><div class="gym-map-links" style="justify-content:flex-start;margin-top:12px"><a class="btn secondary" href="https://maps.apple.com/?q=gyms" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Find gyms in Apple Maps</a><a class="btn secondary" href="https://www.google.com/maps/search/?api=1&query=gyms+near+me" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Find gyms in Google Maps</a></div>'+
  '<form id="gym-city-form"><label class="input-label" for="gym-city">Or enter a city</label><div class="barcode-row"><input class="calorie-date" id="gym-city" maxlength="90" placeholder="e.g., Montreal, QC" value="'+esc(gymPlace)+'" required><button type="submit" class="btn secondary" '+(gymBusy?'disabled':'')+'>Search</button></div></form>'+
  '<label class="input-label" for="gym-radius">Search radius</label><select id="gym-radius"><option value="2000" '+(gymRadius===2000?'selected':'')+'>2 km</option><option value="5000" '+(gymRadius===5000?'selected':'')+'>5 km</option><option value="10000" '+(gymRadius===10000?'selected':'')+'>10 km</option><option value="20000" '+(gymRadius===20000?'selected':'')+'>20 km</option></select>'+
  '<p class="note" id="gym-status">'+esc(gymMessage)+'</p>'+
- '<a href="https://www.google.com/maps/search/?api=1&query=gyms+near+me" target="_blank" rel="noopener noreferrer">Open gym search in Google Maps ↗</a></section>'+
+ '<p class="note">If you are using the Home Screen app and location access does not appear, open Lift Journal in Safari, allow location access there, then try again. Apple Maps and Google Maps buttons work independently of Lift Journal location access.</p></section>'+
  '<section class="card"><h2>Nearby gyms '+(gymResults.length?'('+gymResults.length+')':'')+'</h2>'+(list||'<p class="muted">Search to display nearby gyms.</p>')+'</section>';
 }
 function gymDistance(lat1,lon1,lat2,lon2){
@@ -447,14 +447,14 @@ async function gymSearch(lat,lon){
  const address=[tags['addr:housenumber'],tags['addr:street'],tags['addr:city']].filter(Boolean).join(' ');
  return {name:tags.name||'Unnamed fitness centre',lat:a,lon:b,address,distance:gymDistance(lat,lon,a,b)};
  }).filter(Boolean).sort((a,b)=>a.distance-b.distance).slice(0,35);
- gymMessage=gymResults.length?'Showing closest results. Tap Map for directions and details.':'No gyms found in this radius. Try a larger radius or Google Maps.';
+ gymMessage=gymResults.length?'Showing closest results. Choose Apple Maps or Google Maps for directions.':'No gyms found in this radius. Try a larger radius or a maps app.';
  }catch(err){gymMessage='Gym listings could not load ('+err.message+'). Try again or use the Google Maps search link.'}
  gymBusy=false;render();
 }
 function gymNear(){
- if(!navigator.geolocation){gymMessage='Your browser does not support location. Search by city instead.';render();return}
+ if(!window.isSecureContext||!navigator.geolocation){gymMessage='Location is unavailable in this browser. Open the HTTPS site in Safari, or use the Apple Maps / Google Maps buttons.';render();return}
  gymBusy=true;gymMessage='Requesting location permission…';render();
- navigator.geolocation.getCurrentPosition(p=>gymSearch(p.coords.latitude,p.coords.longitude),err=>{gymBusy=false;gymMessage='Location unavailable or denied. Search by city instead.';render()},{enableHighAccuracy:false,timeout:15000,maximumAge:60000});
+ try{navigator.geolocation.getCurrentPosition(p=>{if(!Number.isFinite(p.coords.latitude)||!Number.isFinite(p.coords.longitude)){gymBusy=false;gymMessage='Location coordinates could not be read. Open Apple Maps or Google Maps instead.';render();return}gymSearch(p.coords.latitude,p.coords.longitude)},err=>{gymBusy=false;const details=err.code===1?'Location permission was denied. Check Settings → Privacy & Security → Location Services → Safari Websites, then allow location access.':err.code===2?'Your device could not determine its location. Make sure Location Services are on.':err.code===3?'Location request timed out. Try again where GPS or Wi-Fi reception is better.':'Location is unavailable.';gymMessage=details+' You can still use Apple Maps, Google Maps or search by city.';render()},{enableHighAccuracy:false,timeout:20000,maximumAge:60000})}catch(err){gymBusy=false;gymMessage='Location request failed: '+err.message+'. Use Apple Maps, Google Maps or city search.';render()}
 }
 async function gymCity(q){
  gymPlace=q.trim();gymBusy=true;gymMessage='Finding city…';render();
