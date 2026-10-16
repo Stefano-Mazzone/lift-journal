@@ -1318,7 +1318,7 @@ function movementEquipment(name){
 function exerciseAlternatives(name,limit=8,profile=data.trainerProfile){
  // With current symptoms in the original movement, do not automatically suggest
  // another lift as if it were a medically safer replacement.
- if(profile?.limitStatus==='current'&&!trainerCanUse(name,profile))return [];
+ if(profile&&!trainerCanUse(name,profile))return [];
  const source=identifyExercise(name),baseEquipment=movementEquipment(name);
  const restricted=Array.isArray(profile?.limits)?profile.limits:[];
  return catalogWithUserExercises().filter(r=>r.name.toLowerCase()!==String(name).toLowerCase())
@@ -1337,7 +1337,8 @@ function exerciseAlternatives(name,limit=8,profile=data.trainerProfile){
    sameGroup?'Same Muscle Group':'Other Exercise';
   return {...r,score,reason,equipmentFit,cautions,currentConcern};
  })
- .filter(r=>r.score>=25&&!r.currentConcern&&r.equipmentFit&&trainerCanUse(r.name,profile||{}))
+ .filter(r=>r.score>=25&&!r.currentConcern&&r.equipmentFit&&trainerCanUse(r.name,profile||{})&&
+  (source.pattern==='other'||identifyExercise(r.name).pattern===source.pattern))
  .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,limit);
 }
 const TRAINER_LIMIT_AREAS=[['knee','Knee'],['hip','Hip / Groin'],['ankle','Ankle / Foot'],['back','Lower Back'],['shoulder','Shoulder'],['elbow','Elbow / Wrist'],['neck','Neck']];
@@ -1391,7 +1392,7 @@ function trainerAreaRisk(name,area){
  if(area==='hip')return /squat|lunge|step.up|deadlift|hip thrust|bridge|leg press|split squat|jump/.test(v);
  if(area==='ankle')return /squat|lunge|step.up|calf|jump|run|walk|split squat/.test(v);
  if(area==='back')return /deadlift|romanian|good morning|bent.over|back squat|front squat|overhead|shrug|hyperextension|rack pull|back extension|glute bridge|hip thrust/.test(v);
- if(area==='shoulder')return /shoulder|overhead|press|bench|fly|lateral|front raise|dip|push.up|snatch|jerk/.test(v);
+ if(area==='shoulder')return /shoulder|overhead|press|bench|fly|lateral|front raise|dip|push.up|snatch|jerk|pull|row|shrug|rear delt|raise/.test(v);
  if(area==='elbow')return /curl|triceps|pressdown|extension|bench|press|dip/.test(v);
  if(area==='neck')return /overhead|neck|shrug|back squat|front squat|shoulder press/.test(v);
  return false;
@@ -1534,7 +1535,7 @@ function setupPreferencesInput(){
   trainerOptions('gen-equipment',[['all','Full Gym'],['dumbbells','Dumbbells & Bodyweight'],['cables','Cables & Bodyweight']],p.equipment):
  setupStep===4?
   '<fieldset class="trainer-pain-fields"><legend>Any body areas you want considered? (Optional)</legend>'+
-  '<p class="note">Select each affected area and give it its own current pain level (0–10). A past injury with no current pain can be rated 0. You do not need to enter diagnoses or other private details.</p>'+
+  '<p class="note">Select each affected area and give it its own current pain level (0–10). A past injury with no current pain can be rated 0. You do not need to enter diagnoses or other private details. Selections are saved on this device and included in manual backups.</p>'+
   painFieldsMarkup(p,'setup')+
   '<p class="trainer-safety-hint">These answers are screening flags, not medical diagnoses. Related exercises may be excluded, but no remaining movement is guaranteed safe. Stop if exercise causes or worsens pain.</p></fieldset>':
   '<fieldset class="trainer-health-check"><legend>Before starting, do any of these apply?</legend>'+
