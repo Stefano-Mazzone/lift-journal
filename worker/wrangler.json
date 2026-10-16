@@ -15,6 +15,14 @@
         "limit": 4,
         "period": 60
       }
+    },
+    {
+      "name": "FEEDBACK_RATE_LIMIT",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
     }
   ]
 }
