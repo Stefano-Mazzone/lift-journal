@@ -351,6 +351,267 @@ const stapleFoods=[
  ['Greek yogurt plain nonfat',59,10.3,3.6,.4,245],['Potato baked',93,2.5,21.2,.1,122],
  ['Salmon cooked',206,22.1,0,12.4,135],['Apple raw',52,.3,13.8,.2,125]
 ].map(x=>({name:x[0],kcal:x[1],protein:x[2],carbs:x[3],fat:x[4],cup:x[5],source:'Generic food estimate'}));
+const extraFoods=String.raw`Steak, sirloin, grilled|206|29|0|9||sirloin beef steak
+Steak, ribeye, grilled|291|25|0|21||rib eye beef steak
+Steak, filet mignon, grilled|267|27|0|17||tenderloin beef steak
+Steak, New York strip, grilled|250|27|0|15||striploin strip steak
+Steak, flank, cooked|192|28|0|8||beef flank steak
+Steak, skirt, cooked|220|27|0|12||beef skirt steak
+Steak, T-bone, grilled|247|26|0|16||t bone beef steak
+Steak, porterhouse, grilled|248|26|0|16||beef porterhouse steak
+Steak, round, lean, cooked|190|30|0|6||beef round steak
+Steak, chuck, cooked|250|27|0|15||beef chuck steak
+Beef, ground, 95% lean, cooked|172|26|0|6||ground beef hamburger
+Beef, ground, 90% lean, cooked|217|26|0|12||ground beef hamburger
+Beef, ground, 85% lean, cooked|250|26|0|16||ground beef hamburger
+Beef, ground, 80% lean, cooked|272|25|0|19||ground beef hamburger
+Beef, brisket, cooked|250|27|0|15||brisket
+Beef, roast, lean, cooked|200|29|0|9||roast beef
+Beef, short ribs, braised|337|23|0|27||beef ribs
+Beef, burger patty|250|26|0|16||beef hamburger burger
+Beef, liver, cooked|191|29|5|5||liver
+Beef, jerky|410|33|11|25||beef jerky
+Pork, chop, grilled|231|28|0|13||pork chops
+Pork, chop, raw|143|21|0|6||pork chops uncooked
+Pork, tenderloin, roasted|143|26|0|4||pork fillet
+Pork, loin roast|196|28|0|9||pork loin
+Pork, shoulder, cooked|269|25|0|18||pork butt roast
+Pork, pulled, plain|235|27|1|13||pulled pork
+Pork, ribs, roasted|310|23|0|24||spare ribs
+Pork, belly, cooked|518|9|0|53||pork belly
+Pork, ground, cooked|297|26|0|21||minced pork
+Pork, ham, cooked|145|21|2|6||ham
+Pork, bacon, cooked|541|37|1|42||bacon
+Pork, prosciutto|195|28|0|8||prosciutto
+Pork, sausage, cooked|310|15|2|27||pork breakfast sausage
+Pork, Italian sausage, cooked|325|17|3|28||italian sausage
+Pork, breakfast sausage links|315|14|2|28||sausage links
+Pork, chorizo sausage|455|24|2|38||chorizo
+Pork, bratwurst sausage|297|12|3|27||bratwurst
+Pork, pepperoni|494|23|2|44||pepperoni
+Pork, salami|336|22|2|26||salami
+Pork, hot dog|290|11|3|26||hotdog frankfurter
+Sausage, beef|318|14|2|28||beef sausage
+Sausage, chicken|195|18|3|12||chicken sausage
+Sausage, turkey|196|19|3|12||turkey sausage
+Sausage, kielbasa, smoked|333|14|3|29||polish sausage
+Sausage, andouille|310|15|1|27||andouille
+Sausage, vegetarian|200|15|9|11||vegan sausage
+Chicken breast, cooked, skinless|165|31|0|3.6||chicken breast grilled
+Chicken breast, raw, skinless|120|22|0|2.6||chicken breast
+Chicken thigh, cooked, skinless|209|26|0|11||chicken thigh
+Chicken thigh, raw|177|20|0|10||chicken thigh
+Chicken drumstick, roasted|216|27|0|11||chicken legs
+Chicken wings, roasted|254|27|0|16||chicken wing
+Chicken breast, breaded fried|260|21|14|13||chicken tenders cutlet
+Chicken, rotisserie|239|27|0|14||rotisserie chicken
+Chicken, nuggets|296|15|18|18||chicken nuggets
+Chicken, ground, cooked|189|27|0|9||minced chicken
+Turkey breast, cooked|135|30|0|1||turkey
+Turkey, ground, lean, cooked|176|27|0|7||ground turkey
+Turkey bacon|243|29|4|13||bacon
+Duck, roasted|337|19|0|28||duck meat
+Lamb leg, roasted|206|28|0|10||lamb
+Lamb chop, cooked|294|25|0|21||lamb chops
+Lamb, ground|283|24|0|20||ground lamb
+Salmon, Atlantic, cooked|206|22|0|12||fish salmon
+Salmon, canned|136|20|0|6||fish salmon
+Tuna, canned in water|116|26|0|1||fish tuna
+Tuna, canned in oil|198|29|0|8||fish tuna
+Tuna steak, grilled|184|30|0|6||fish ahi tuna
+Tilapia, cooked|128|26|0|3||fish
+Cod, cooked|105|23|0|1||fish
+Haddock, cooked|112|24|0|1||fish
+Halibut, cooked|140|27|0|3||fish
+Trout, cooked|190|27|0|8||fish
+Sardines, canned|208|25|0|11||fish
+Mackerel, cooked|262|24|0|18||fish
+Shrimp, boiled|99|24|0|0.3||prawn seafood
+Scallops, cooked|111|21|5|1||scallop seafood
+Mussels, steamed|172|24|7|4||mussel seafood
+Crab, cooked|97|19|0|2||seafood
+Lobster, cooked|89|19|0|1||seafood
+Squid, cooked|92|16|3|1||calamari seafood
+Egg, boiled|155|13|1|11|243|eggs hard boiled
+Egg, scrambled|148|10|2|11|243|eggs
+Egg, raw|143|13|1|10|243|eggs
+Egg whites, cooked|52|11|1|0|243|egg white
+Butter, salted|717|0.9|0.1|81||butter
+Butter, unsalted|717|0.9|0.1|81||butter
+Butter, light|360|0.5|0.5|40||butter spread
+Butter, clarified, ghee|900|0|0|100||ghee
+Butter, plant based margarine|717|0.2|1|80||margarine vegan butter
+Peanut butter, creamy|588|25|20|50||peanut butter
+Almond butter|614|21|19|55||nut butter
+Cashew butter|587|18|30|49||nut butter
+Milk, whole|61|3.2|4.8|3.3|244|full fat milk
+Milk, 2%|50|3.4|4.8|2|244|milk
+Milk, 1%|42|3.4|5|1|244|milk
+Milk, skim|35|3.4|5|0.1|245|fat free milk
+Milk, lactose free|50|3.4|4.8|2|244|lactose free milk
+Milk, chocolate|83|3.2|10|3|244|chocolate milk
+Cream, heavy whipping|340|2|3|36|238|heavy cream
+Cream, half and half|131|3|4.3|12|242|half half cream
+Cream, sour|198|2.4|4.6|19|230|sour cream
+Yogurt, plain, whole milk|61|3.5|4.7|3.3|245|yoghurt
+Yogurt, plain, low fat|63|5.3|7|1.6|245|yoghurt
+Yogurt, plain, nonfat|56|5.7|7.7|0.2|245|yoghurt skim
+Yogurt, Greek, nonfat|59|10|3.6|0.4|245|greek yoghurt yogurt
+Yogurt, Greek, 2%|73|10|3.5|2|245|greek yoghurt yogurt
+Yogurt, Greek, whole milk|97|9|3.9|5|245|greek yoghurt yogurt
+Yogurt, vanilla|85|4|13|1.5|245|vanilla yoghurt
+Yogurt, fruit flavored|95|4|16|2|245|strawberry yogurt blueberry yoghurt
+Yogurt, drinkable|75|3.5|12|1.6|245|drinking yoghurt
+Kefir, plain|55|3.5|4.5|2|245|fermented milk
+Cheese, cheddar|403|25|1|33||cheddar
+Cheese, mozzarella|280|22|3|21||mozzarella
+Cheese, mozzarella, part skim|254|24|3|16||mozzarella
+Cheese, parmesan|431|38|4|29||parmesan
+Cheese, feta|264|14|4|21||feta
+Cheese, cottage, 2%|84|12|4|2.3|210|cottage cheese
+Cheese, cottage, 4%|98|11|3|4|210|cottage cheese
+Cheese, ricotta|138|11|5|8|246|ricotta
+Cheese, cream cheese|342|6|5|34||cream cheese
+Cheese, Swiss|393|27|1.4|31||swiss cheese
+Cheese, brie|334|21|0.5|28||brie
+Cheese, goat|364|22|0.1|30||goat cheese
+Cheese, gouda|356|25|2.2|27||gouda
+Cheese, blue|353|21|2.3|29||blue cheese
+Ice cream, vanilla|207|3.5|24|11|132|ice cream
+Frozen yogurt, vanilla|159|4|26|5||froyo yoghurt
+Rice, white, cooked|130|2.7|28|0.3|158|rice
+Rice, brown, cooked|123|2.7|26|1|195|rice
+Rice, jasmine, cooked|130|2.7|28|0.3|158|rice
+Rice, basmati, cooked|121|3.5|25|0.4|158|rice
+Rice, white, dry|365|7|80|0.7|185|uncooked rice
+Quinoa, cooked|120|4.4|21|1.9|185|quinoa
+Couscous, cooked|112|3.8|23|0.2|157|couscous
+Pasta, cooked|158|6|31|0.9|140|spaghetti noodles
+Pasta, whole wheat, cooked|149|6|30|1.7|140|spaghetti
+Pasta, dry|371|13|75|1.5|100|uncooked spaghetti
+Oatmeal, cooked|71|2.5|12|1.5|234|porridge oats
+Oats, rolled, dry|389|17|66|7|80|oatmeal
+Bread, white|265|9|49|3.2||toast
+Bread, whole wheat|247|13|41|4.2||toast
+Bread, sourdough|270|9|52|2||bread
+Bread, rye|259|9|48|3.3||rye
+Bagel, plain|270|10|53|1.5||bagels
+English muffin|235|8|46|2||muffin
+Tortilla, flour|312|8|52|8||wrap
+Tortilla, corn|218|6|45|3||taco shell
+Croissant, butter|406|8|46|21||pastry
+Pancakes, plain|227|6|28|10||pancake
+Waffles, plain|291|8|33|14||waffle
+Cereal, corn flakes|357|7|84|0.4|28|cornflakes
+Granola|471|10|64|20|110|muesli
+Popcorn, air popped|387|13|78|4.5|8|popcorn
+Potato, baked|93|2.5|21|0.1|122|potatoes
+Potato, boiled|87|2|20|0.1|156|potatoes
+Potato, mashed|113|2.1|17|4|210|mashed potatoes
+Sweet potato, baked|90|2|21|0.2|200|yam
+French fries|312|3.4|41|15||fries chips
+Potato chips|536|7|53|35||crisps chips
+Lentils, cooked|116|9|20|0.4|198|lentils
+Chickpeas, cooked|164|9|27|2.6|164|garbanzo
+Black beans, cooked|132|9|24|0.5|172|beans
+Kidney beans, cooked|127|9|23|0.5|177|beans
+Pinto beans, cooked|143|9|26|0.7|171|beans
+Baked beans|94|5|21|0.4|253|beans
+Edamame, cooked|121|12|9|5|155|soy beans
+Tofu, firm|144|17|3|9|248|tofu
+Tofu, silken|55|5|2|3|248|tofu
+Tempeh|193|20|9|11|166|soy
+Hummus|166|8|14|10|246|chickpea dip
+Almonds|579|21|22|50|143|nuts
+Peanuts, roasted|587|24|21|50|146|nuts
+Cashews|574|15|33|46|137|nuts
+Walnuts|654|15|14|65|117|nuts
+Pistachios|562|20|28|45|123|nuts
+Pecans|691|9|14|72|109|nuts
+Chia seeds|486|17|42|31||chia
+Flax seeds|534|18|29|42||flax
+Pumpkin seeds|559|30|11|49||pepitas
+Olive oil|884|0|0|100||oil
+Canola oil|884|0|0|100||oil
+Vegetable oil|884|0|0|100||oil
+Coconut oil|892|0|0|100||oil
+Mayonnaise, regular|680|1|1|75||mayo
+Mayonnaise, light|333|1|7|33||mayo
+Ketchup|112|1|26|0.2||tomato sauce
+Mustard, yellow|66|4|6|4||mustard
+Honey|304|0.3|82|0||honey
+Maple syrup|260|0|67|0||syrup
+Sugar, granulated|387|0|100|0||sugar
+Jam, strawberry|250|0.5|65|0.1||jelly preserves
+Chocolate, dark|598|8|46|43||dark chocolate
+Chocolate, milk|535|8|59|30||milk chocolate
+Apple|52|0.3|14|0.2|125|apples
+Banana|89|1.1|23|0.3|150|bananas
+Orange|47|0.9|12|0.1|180|oranges
+Grapefruit|42|0.8|11|0.1|230|grapefruit
+Strawberries|32|0.7|7.7|0.3|152|strawberry
+Blueberries|57|0.7|14.5|0.3|148|blueberry
+Raspberries|52|1.2|12|0.7|123|raspberry
+Blackberries|43|1.4|10|0.5|144|blackberry
+Grapes|69|0.7|18|0.2|151|grape
+Watermelon|30|0.6|7.6|0.2|152|melon
+Cantaloupe|34|0.8|8|0.2|160|melon
+Pineapple|50|0.5|13|0.1|165|pineapple
+Mango|60|0.8|15|0.4|165|mangoes
+Peach|39|0.9|10|0.3|154|peaches
+Pear|57|0.4|15|0.1|140|pears
+Kiwi|61|1.1|15|0.5|180|kiwifruit
+Avocado|160|2|9|15|150|avocado
+Dates, dried|282|2.5|75|0.4||dates
+Raisins|299|3.1|79|0.5||dried grapes
+Tomato|18|0.9|3.9|0.2|180|tomatoes
+Cucumber|15|0.6|3.6|0.1|104|cucumbers
+Lettuce, romaine|17|1.2|3.3|0.3|47|lettuce salad
+Spinach, raw|23|2.9|3.6|0.4|30|spinach
+Spinach, cooked|23|3|3.8|0.3|180|spinach
+Broccoli, raw|34|2.8|6.6|0.4|91|broccoli
+Broccoli, cooked|35|2.4|7.2|0.4|156|broccoli
+Cauliflower, cooked|23|1.8|4.1|0.5|124|cauliflower
+Carrot, raw|41|0.9|10|0.2|128|carrots
+Carrot, cooked|35|0.8|8.2|0.2|156|carrots
+Onion|40|1.1|9.3|0.1|160|onions
+Garlic|149|6.4|33|0.5||garlic cloves
+Bell pepper, red|31|1|6|0.3|149|pepper
+Bell pepper, green|20|0.9|4.6|0.2|149|pepper
+Zucchini|17|1.2|3.1|0.3|124|courgette
+Mushrooms, raw|22|3.1|3.3|0.3|70|mushroom
+Mushrooms, cooked|28|3.6|4.3|0.5|156|mushroom
+Asparagus|22|2.4|4|0.2|180|asparagus
+Green beans|35|1.9|7.9|0.3|125|beans
+Green peas|84|5.4|16|0.2|160|peas
+Sweet corn|96|3.4|21|1.5|164|corn maize
+Cabbage|25|1.3|5.8|0.1|89|cabbage
+Kale|35|2.9|4.4|1.5|21|kale
+Brussels sprouts|36|2.6|7|0.5|156|brussel sprouts
+Eggplant, cooked|35|0.8|8.7|0.2|99|aubergine
+Beets, cooked|44|1.7|10|0.2|170|beetroot
+Celery|14|0.7|3|0.2|101|celery
+Pizza, cheese|266|11|33|10||pizza
+Pizza, pepperoni|298|12|32|14||pizza
+Hamburger with bun|254|13|30|9||burger
+Cheeseburger with bun|303|17|30|13||burger
+Chicken sandwich, fried|275|15|27|12||chicken burger
+French toast|229|8|27|10||french toast
+Burrito, beef and beans|205|10|24|8||burrito
+Taco, beef|226|11|21|11||taco
+Sushi, salmon roll|170|7|30|3||sushi
+Sushi, California roll|148|5|30|1||sushi
+Ramen, prepared|103|4|15|3||ramen noodle
+Soup, chicken noodle|45|3|6|1||soup
+Soup, tomato|40|1|8|0.6||soup
+Chili, beef and beans|120|9|12|4||chili
+Donut, glazed|421|5|49|23||doughnut
+Cookie, chocolate chip|488|6|64|25||cookies
+Brownie, chocolate|466|5|56|26||brownies
+Cake, vanilla frosted|350|4|54|15||cake
+Protein powder, whey|390|78|8|5||protein shake
+Protein bar|380|30|35|14||protein bars`.trim().split('\n').map(line=>{const [name,kcal,protein,carbs,fat,cup,aliases]=line.split('|');return {name,kcal:Number(kcal),protein:Number(protein),carbs:Number(carbs),fat:Number(fat),cup:cup?Number(cup):null,aliases,source:'Typical nutrition estimate'};});
+stapleFoods.push(...extraFoods.filter(f=>!stapleFoods.some(x=>x.name.toLowerCase()===f.name.toLowerCase())));
 let foodResults=[],foodQuery='',foodMessage='';
 function foodSearchUI(){
  return '<section class="card"><h2>Search foods</h2><p class="muted">Search common foods or packaged products. Generic nutrition estimates are per 100 g; cup equivalents are approximate and depend on preparation.</p><form id="food-search-form" class="barcode-row"><input id="food-query" class="calorie-date" maxlength="80" required placeholder="Chicken breast" value="'+esc(foodQuery)+'"><button class="btn secondary" type="submit">Search</button></form><p class="note">'+esc(foodMessage)+'</p>'+
