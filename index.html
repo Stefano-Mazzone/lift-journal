@@ -1139,8 +1139,15 @@ function coachMinutes(text,fallback=45){
  return value>=15&&value<=120?value:fallback;
 }
 function coachInterpretRequest(raw){
- const text=String(raw||'').trim(),q=text.toLowerCase();
+ const text=String(raw||'').trim(),q=text.toLowerCase(),prior=coachRequest||{};
  if(text.length<3||text.length>500)return {reply:'Describe the workout you want in 3–500 characters, including your goal or time available.'};
+ const dayMention=q.match(/\b(\d{1,2})[\s-]*days?\b/);
+ if(dayMention&&Number(dayMention[1])>7)return {reply:'I can build programs for 1–7 training days per week. Please choose a number in that range.'};
+ const timeMention=q.match(/\b(\d{1,3})[\s-]*(?:min(?:ute)?s?|mins?)\b/);
+ if(timeMention&&![20,30,45,60].includes(Number(timeMention[1])))
+  return {reply:'The current workout planner supports 20, 30, 45 or 60 minutes per session. Which duration would you prefer?'};
+ if(/\b(yoga|pilates|marathon|cycling|biking|swimming|running|run training|meal plan|diet plan)\b/.test(q))
+  return {reply:'This coach currently builds resistance-training workouts. Yoga, endurance sports and meal planning are not yet supported in this feature.'};
  if(/\b(chest pain|chest discomfort|faint|fainting|dizzy|dizziness|shortness of breath|can't breathe|injur(?:y|ed)|pain|sprain|strain|recovering from surgery)\b/.test(q)){
   return {reply:'You mentioned pain, an injury, or a possible warning symptom. I cannot determine which exercises are safe from a chat. Please complete the app’s readiness check, and seek individualized medical advice where appropriate. I won’t create a workout from this request.'};
  }
@@ -1148,22 +1155,23 @@ function coachInterpretRequest(raw){
  if(none)return {reply:'A strict no-equipment workout is not yet supported by this planner. I won’t suggest a gym-based plan and pretend it fits. You can still create a custom plan in the program builder.'};
  const onlyDumbbells=/\b(dumbbells?|free weights?|home gym|at home|dbs?)\b/.test(q);
  const onlyCables=/\b(cables?|cable machine)\b/.test(q);
- const equipment=onlyDumbbells&&!onlyCables?'dumbbells':onlyCables&&!onlyDumbbells?'cables':(data.trainerProfile?.equipment||'all');
+ const equipment=onlyDumbbells&&!onlyCables?'dumbbells':onlyCables&&!onlyDumbbells?'cables':(prior.equipment||data.trainerProfile?.equipment||'all');
  const goal=/\b(strength|stronger|powerlift|heavy weights?)\b/.test(q)?'strength':
   /\b(fit|fitness|general|endurance|conditioning|active)\b/.test(q)?'general':
   /\b(muscle|hypertrophy|size|grow|bulk|bodybuilding)\b/.test(q)?'muscle':
-  (data.trainerProfile?.goal||'muscle');
+  (prior.goal||data.trainerProfile?.goal||'muscle');
  const count=q.match(/\b([1-7])\s*[- ]?\s*(?:day|days)\s*(?:per|a|each)?\s*week\b/)||
   q.match(/\b([1-7])\s*[- ]?\s*(?:day|days)\s*(?:plan|program|split|routine)\b/)||
   q.match(/\b(?:workout|train|training|exercise)\s*([1-7])\s*(?:days?|times?)\s*(?:a|per|each)?\s*week\b/)||
   q.match(/\b([1-7])\s*[- ]?\s*days?\b/);
- const days=count?Number(count[1]):(Array.isArray(data.weekdays)?data.weekdays.length:3);
- const isProgram=!!count||/\b(program|routine|weekly plan|weekly split|training split|schedule|per week|each week)\b/.test(q);
+ const days=count?Number(count[1]):(prior.days||(Array.isArray(data.weekdays)?data.weekdays.length:3));
+ const wantsToday=/\b(today|one[- ]off|single workout|this session|this workout)\b/.test(q);
+ const isProgram=!wantsToday&&(!!count||/\b(program|routine|weekly plan|weekly split|training split|schedule|per week|each week)\b/.test(q)||prior.intent==='program');
  const focus=/\b(legs?|lower[\s-]?body|glutes?|quads?|hamstrings?)\b/.test(q)?'lower':
-  /\b(upper[\s-]?body|arms?|chest|back|shoulders?|biceps?|triceps?)\b/.test(q)?'upper':'full';
- const favoriteOnly=/\b(favou?rites?|starred|saved exercises?)\b/.test(q);
- const light=/\b(light|easy|gentle|tired|low energy|short session)\b/.test(q);
- const minutes=coachMinutes(q,data.trainerProfile?.minutes||45);
+  /\b(upper[\s-]?body|arms?|chest|back|shoulders?|biceps?|triceps?)\b/.test(q)?'upper':prior.focus||'full';
+ const favoriteOnly=/\b(without favou?rites?|no favou?rites?)\b/.test(q)?false:/\b(favou?rites?|starred|saved exercises?)\b/.test(q)?true:!!prior.favoriteOnly;
+ const light=/\b(normal|regular intensity)\b/.test(q)?false:/\b(light|easy|gentle|tired|low energy|short session)\b/.test(q)?true:!!prior.light;
+ const minutes=coachMinutes(q,prior.minutes||data.trainerProfile?.minutes||45);
  return {intent:isProgram?'program':'session',goal,days,minutes,focus,equipment,favoriteOnly,light,
   reply:''};
 }
