@@ -395,39 +395,67 @@ function planned(){return cycleFor(month).days[day]}
 
 function loggedNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);return Number.isFinite(n)&&n>=0?n:null}
 function pastExercise(name,before){
- const ss=Object.values(data.sessions).filter(s=>s&&s.finished&&(!before||s.finished<=before)).sort((a,b)=>String(b.finished).localeCompare(String(a.finished)));
- for(const s of ss){const e=(Array.isArray(s.exercises)?s.exercises:[]).find(x=>x.name===name);if(!e||!Array.isArray(e.sets))continue;
- const sets=e.skipped?[]:e.sets.map((v,i)=>({index:i+1,weight:loggedNumber(v.weight),reps:loggedNumber(v.reps),done:!!v.done})).filter(v=>v.done&&v.weight!==null&&v.reps!==null&&v.reps>0);
- if(sets.length)return {sets,date:s.finished,unit:s.unit||data.unit,legacyUnit:!s.unit};}
+ // Compare training dates, not save/finish timestamps. Manually entered
+ // workouts may be backdated after they are logged.
+ const cutoff=before&&typeof before==='object'?scheduledWorkoutDate(before):
+  typeof before==='string'&&before.length>=10?before.slice(0,10):null;
+ const sessions=Object.values(data.sessions||{}).filter(s=>s&&s!==before&&s.finished&&
+  (!cutoff||scheduledWorkoutDate(s)<cutoff)).sort((a,b)=>
+  scheduledWorkoutDate(b).localeCompare(scheduledWorkoutDate(a))||
+  String(b.finished).localeCompare(String(a.finished)));
+ for(const s of sessions){
+  const e=(Array.isArray(s.exercises)?s.exercises:[]).find(x=>x&&x.name===name);
+  if(!e||!Array.isArray(e.sets)||e.skipped)continue;
+  const sets=e.sets.map((v,i)=>({index:i+1,weight:loggedNumber(v.weight),reps:loggedNumber(v.reps),done:!!v.done}))
+   .filter(v=>v.done&&v.weight!==null&&v.reps!==null&&v.reps>0);
+  if(sets.length)return {sets,date:scheduledWorkoutDate(s)+'T12:00:00',unit:s.unit||data.unit,legacyUnit:!s.unit};
+ }
  return null;
 }
 function repGoal(reps){const nums=String(reps).match(/\d+/g);if(!nums)return null;const min=Number(nums[0]),max=nums.length>1&&/[–-]/.test(String(reps))?Number(nums[1]):min;return {min,max}}
 function formatWeight(n){return Number(n).toLocaleString(undefined,{maximumFractionDigits:2})}
-function adviceFor(ex,last){
+function adviceFor(ex,last,unit=data.unit){
  if(!last)return {kind:'unknown',title:'No previous weights yet',details:'Log and complete a workout to get a comparison next time.'};
- if(last.unit!==data.unit)return {kind:'unknown',title:'Check your weight units',details:'Your last session used '+last.unit+', but Settings currently shows '+data.unit+'. Units are not automatically converted, so no increase is suggested.'};
- const goal=repGoal(ex.reps);if(!goal)return {kind:'unknown',title:'Review your last workout',details:'There is no clear rep target for this exercise.'};
- if(last.sets.length<ex.sets)return {kind:'hold',title:'Build a complete baseline',details:'Last time, only '+last.sets.length+' of '+ex.sets+' prescribed sets had checked reps and weights. Complete all sets before increasing.'};
- const working=last.sets.slice(0,ex.sets);
- if(working.some(v=>v.reps<goal.min))return {kind:'caution',title:'Build reps first',details:'At least one set was below '+goal.min+' reps. Keep or reduce weight as needed to hit the range with good form.'};
- if(working.some(v=>v.reps<goal.max))return {kind:'hold',title:'Keep the weight for now',details:'Aim for '+goal.max+' reps on all '+ex.sets+' sets with good form before increasing.'};
- const w=working[0].weight;
- if(w<=0||working.some(v=>Math.abs(v.weight-w)>0.00001))return {kind:'hold',title:'Repeat and standardize',details:'Your completed sets used different weights (or zero added weight). Build consistent sets before increasing.'};
- return {kind:'increase',title:'Small increase may be appropriate',details:'You reached at least '+goal.max+' reps on all '+ex.sets+' sets at '+formatWeight(w)+' '+last.unit+'. If your form was controlled and you had 1–3 reps in reserve, try roughly 2.5–5% more next time if available.'};
+ const targetUnit=unit==='kg'?'kg':'lb';
+ if(last.legacyUnit&&last.unit!==targetUnit)
+  return {kind:'unknown',title:'Check previous units',details:'This older workout did not record its weight unit. Confirm whether the weights were pounds or kilograms before comparing.'};
+ const workingSets=last.sets.map(s=>({...s,weight:convertHistoryWeight(s.weight,last.unit,targetUnit)}));
+ const goal=repGoal(ex.reps);
+ if(!goal)return {kind:'unknown',title:'Review your last workout',details:'There is no clear rep target for this exercise.'};
+ if(workingSets.length<ex.sets)
+  return {kind:'hold',title:'Build a complete baseline',details:'Last time, only '+workingSets.length+' of '+ex.sets+' prescribed sets had checked reps and weights. Complete all sets before increasing.'};
+ const working=workingSets.slice(0,ex.sets);
+ if(working.some(v=>v.reps<goal.min))
+  return {kind:'caution',title:'Build reps first',details:'At least one set was below '+goal.min+' reps. Keep or reduce weight as needed to hit the range with good form.'};
+ if(working.some(v=>v.reps<goal.max))
+  return {kind:'hold',title:'Keep the weight for now',details:'Aim for '+goal.max+' reps on all '+ex.sets+' sets with good form before increasing.'};
+ const weight=working[0].weight;
+ if(weight<=0||working.some(v=>Math.abs(v.weight-weight)>0.005))
+  return {kind:'hold',title:'Repeat and standardize',details:'Your completed sets used different weights (or zero added weight). Build consistent sets before increasing.'};
+ const converted=last.unit!==targetUnit?' (converted from '+last.unit+')':'';
+ return {kind:'increase',title:'Small increase may be appropriate',details:'You reached at least '+goal.max+
+  ' reps on all '+ex.sets+' sets at about '+formatWeight(weight)+' '+targetUnit+converted+
+  '. If your technique was controlled and you had 1–3 reps in reserve, consider approximately 2.5–5% more next time if equipment permits.'};
 }
-function lastSetText(last){return last.sets.map(s=>'Set '+s.index+': '+formatWeight(s.weight)+' '+last.unit+' × '+formatWeight(s.reps)).join(' · ')}
-function previousPanel(ex,before){
- const last=pastExercise(ex.name,before),tip=adviceFor(ex,last);
+function lastSetText(last,unit=last.unit){
+ const converted=unit!==last.unit;
+ return last.sets.map(s=>'Set '+s.index+': '+(converted?'≈':'')+
+  formatWeight(convertHistoryWeight(s.weight,last.unit,unit))+' '+unit+' × '+formatWeight(s.reps)).join(' · ');
+}
+function previousPanel(ex,session){
+ const last=pastExercise(ex.name,session),unit=session?.unit||data.unit,tip=adviceFor(ex,last,unit);
  const date=last?'<span class="note">'+new Date(last.date).toLocaleDateString()+'</span>':'';
- const sets=last?'<div class="previous-sets">'+esc(lastSetText(last))+'</div>':'';
- const unitNote=last&&last.legacyUnit?'<div class="note" style="margin-top:7px">Older sessions did not record their unit separately. Double-check these numbers if you have switched lb/kg.</div>':'';
- return '<div class="previous-performance"><div class="previous-header"><span>↺ Last workout</span>'+date+'</div>'+sets+'<div class="progression-tip '+tip.kind+'"><strong>'+esc(tip.title)+'</strong><div>'+esc(tip.details)+'</div></div>'+unitNote+'</div>';
+ const sets=last?'<div class="previous-sets">'+esc(lastSetText(last,unit))+'</div>':'';
+ const unitNote=last&&last.legacyUnit?'<div class="note" style="margin-top:7px">Older sessions did not record their unit separately. Verify those numbers before increasing weights.</div>':
+  last&&last.unit!==unit?'<div class="note" style="margin-top:7px">Previous weights converted from '+esc(last.unit)+' to '+esc(unit)+' for comparison. Original logs are unchanged.</div>':'';
+ return '<div class="previous-performance"><div class="previous-header"><span>↺ Previous Workout</span>'+date+
+  '</div>'+sets+'<div class="progression-tip '+tip.kind+'"><strong>'+esc(tip.title)+'</strong><div>'+esc(tip.details)+'</div></div>'+unitNote+'</div>';
 }
 function previousPreview(ex){
- const last=pastExercise(ex.name),tip=adviceFor(ex,last);
+ const last=pastExercise(ex.name),tip=adviceFor(ex,last,data.unit);
  if(!last)return '<div class="prev-preview">No previous workout logged</div>';
  const label=tip.kind==='increase'?'Consider increasing':tip.kind==='caution'?'Build reps first':tip.kind==='hold'?'Keep weight':'Review units';
- return '<div class="prev-preview">Last: '+esc(lastSetText(last))+' <b>· '+esc(label)+'</b></div>';
+ return '<div class="prev-preview">Last: '+esc(lastSetText(last,data.unit))+' <b>· '+esc(label)+'</b></div>';
 }
 
 function prescribedReps(reps){const target=repGoal(reps);return target&&target.min>0?String(target.min):''}
@@ -960,7 +988,7 @@ function sessionView(){
   if(ex.originalName)output+='<div class="exercise-sub">Substituted for '+esc(ex.originalName)+' · Only for '+esc(historyDateLabel(scheduledWorkoutDate(s)))+' · Other workouts unchanged</div>';
   output+=sessionMovementActions(ex,i,s);
   if(ex.skipped){output+='<p class="note">Skipped — not counted as a completed movement.</p></section>';return}
-  output+=previousPanel({...d,name:ex.name,sets:ex.sets.length},s.started);
+  output+=previousPanel({...d,name:ex.name,sets:ex.sets.length},s);
   output+='<div class="setgrid head"><span>SET</span><span>REPS</span><span>'+esc((s.unit||data.unit).toUpperCase())+'</span><span>DONE</span></div>';
   ex.sets.forEach((v,j)=>{
    const attrs=' data-ex="'+i+'" data-set="'+j+'"';
