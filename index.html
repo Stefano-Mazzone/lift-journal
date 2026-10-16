@@ -265,6 +265,10 @@ h1{font-weight:750}h2{font-weight:710}
  .progress>div,.calorie-progress>div{transition:none!important}
  .btn:active:not(:disabled),.workout-option:active,.weekday-toggle:active,.movement-choice:active,.exercise-picker-item:active{transform:none!important}
 }
+
+.exercise-picker-scope{display:flex;flex-direction:column;gap:4px;margin:10px 0 2px;padding:9px 11px;border-radius:10px;background:#213a36;border:1px solid #37685b}
+.exercise-picker-scope strong{color:var(--accent);font-size:12px;font-weight:760}
+.exercise-picker-scope span{color:#c0d4cd;font-size:12px;line-height:1.45}
 </style></head><body><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -469,7 +473,7 @@ function newSession(){
 function exercisePickerOriginal(){
  if(!swapPicker)return null;
  const i=swapPicker.index;
- if(swapPicker.mode==='session')return data.sessions[editing]?.exercises?.[i]?.name||null;
+ if(swapPicker.mode==='session')return data.sessions[swapPicker.sessionId]?.exercises?.[i]?.name||null;
  if(swapPicker.mode==='draft')return draftPlan?.days?.[draftExpanded]?.[1]?.[i]?.name||null;
  return null;
 }
@@ -482,7 +486,7 @@ function openExercisePicker(mode,index){
   mode==='draft'?draftPlan?.days?.[draftExpanded]?.[1]?.[index]:null;
  if(!entry)return;
  if(mode==='session'&&data.sessions[editing]?.finished&&!editingPast)return;
- swapPicker={mode,index,query:'',category:'All Exercises',limit:70};
+ swapPicker={mode,index,sessionId:mode==='session'?editing:null,draftDay:mode==='draft'?draftExpanded:null,query:'',category:'All Exercises',limit:70};
  render();
  document.getElementById('exercise-picker-search')?.focus();
 }
@@ -517,13 +521,15 @@ function exercisePickerListMarkup(){
 function exercisePickerModal(){
  if(!swapPicker)return '';
  const name=exercisePickerTitle();
+ const scopeText=swapPicker.mode==='session'?'<div class="exercise-picker-scope"><strong>Only This Workout</strong><span>Changes are saved for '+esc(historyDateLabel(scheduledWorkoutDate(data.sessions[swapPicker.sessionId])))+'. Other Workout A/B/C sessions and your program stay unchanged.</span></div>':
+ '<div class="exercise-picker-scope"><strong>Program Draft</strong><span>This changes the draft you are reviewing, not any recorded workouts. The draft must be activated separately.</span></div>';
  const groups=['All Exercises',...new Set(catalogWithUserExercises().map(x=>x.category))].sort((a,b)=>
   a==='All Exercises'?-1:b==='All Exercises'?1:a.localeCompare(b));
  return '<div class="exercise-picker-backdrop" id="exercise-picker-backdrop">'+
   '<section class="exercise-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="exercise-picker-title">'+
   '<div class="exercise-picker-header"><div><span class="workout-picker-step">EXERCISE LIBRARY</span>'+
   '<h2 id="exercise-picker-title">Swap Exercise</h2>'+
-  '<p class="note">Replacing: <strong>'+esc(name)+'</strong></p></div>'+
+  '<p class="note">Replacing: <strong>'+esc(name)+'</strong></p>'+scopeText+'</div>'+
   '<button type="button" class="exercise-picker-close" data-picker-close="1" aria-label="Close exercise picker">×</button></div>'+
   '<div class="exercise-picker-controls"><label class="input-label" for="exercise-picker-search">Search Exercises</label>'+
   '<input id="exercise-picker-search" type="search" autocomplete="off" placeholder="Try hammer curl, incline press, leg curl..." value="'+esc(swapPicker.query)+'">'+
@@ -543,10 +549,10 @@ function pickExercise(name){
  if(!swapPicker)return;
  const normalized=String(name||'').trim().replace(/\s+/g,' ');
  if(!normalized||normalized.length>90){alert('Enter an exercise name up to 90 characters.');return}
- const current=exercisePickerOriginal(),{mode,index}=swapPicker;
+ const current=exercisePickerOriginal(),{mode,index,sessionId,draftDay}=swapPicker;
  if(mode==='session'){
-  const s=data.sessions[editing],ex=s?.exercises?.[index];
-  if(!ex||s.finished&&!editingPast)return;
+  const s=data.sessions[sessionId],ex=s?.exercises?.[index];
+  if(!s||editing!==sessionId||!ex||s.finished&&!editingPast)return;
   if(current!==normalized){
    const used=ex.sets.some(v=>v.done||(v.weight!==null&&v.weight!==undefined&&String(v.weight).trim()!=='')); 
    if(used&&!confirm('This exercise already has recorded sets. Swap to '+normalized+' and keep its logged weights and reps? These values will appear under the replacement movement in History.'))return;
@@ -554,11 +560,11 @@ function pickExercise(name){
    ex.name=normalized;ex.skipped=false;save();
   }
  }else if(mode==='draft'){
-  const ex=draftPlan?.days?.[draftExpanded]?.[1]?.[index];if(!ex)return;
+  const ex=draftPlan?.days?.[draftDay]?.[1]?.[index];if(!ex)return;
   ex.name=normalized;
  }
  swapPicker=null;render();
- toast('Exercise selected: '+normalized);
+ toast(mode==='session'?'Swapped for this workout only: '+normalized:'Draft exercise updated: '+normalized);
 }
 
 function changeMovement(i,cmd){
@@ -579,7 +585,7 @@ function changeMovement(i,cmd){
 function sessionMovementActions(e,i,s){
  if(s.finished&&!editingPast)return '';
  return '<div class="exercise-tools">'+
- '<button class="btn tiny secondary" data-movement="swap" data-index="'+i+'">Swap exercise</button>'+
+ '<button class="btn tiny secondary" data-movement="swap" data-index="'+i+'">Swap for This Workout</button>'+
  '<button class="btn tiny secondary" data-movement="skip" data-index="'+i+'">'+(e.skipped?'Restore exercise':'Skip exercise')+'</button>'+
  '<button class="btn tiny secondary" data-movement="add" data-index="'+i+'">+ Set</button>'+
  '<button class="btn tiny secondary" data-movement="remove" data-index="'+i+'">− Set</button>'+
@@ -763,7 +769,7 @@ function sessionView(){
   const d=def[i]||{name:ex.originalName||ex.name,reps:'8–12',sets:ex.sets.length,rest:90},disabled=(s.finished&&!editingPast)||ex.skipped;
   output+='<section class="exercise'+(ex.skipped?' exercise-skipped':'')+'"><h3>'+(i+1)+'. '+esc(ex.name)+(ex.skipped?' (Skipped)':'')+'</h3>';
   output+='<small>Plan: '+d.sets+' × '+esc(d.reps)+' · Actual sets: '+ex.sets.length+' · Rest ~'+d.rest+'s</small>';
-  if(ex.originalName)output+='<div class="exercise-sub">Substituted for '+esc(ex.originalName)+' (this session only)</div>';
+  if(ex.originalName)output+='<div class="exercise-sub">Substituted for '+esc(ex.originalName)+' · Only for '+esc(historyDateLabel(scheduledWorkoutDate(s)))+' · Other workouts unchanged</div>';
   output+=sessionMovementActions(ex,i,s);
   if(ex.skipped){output+='<p class="note">Skipped — not counted as a completed movement.</p></section>';return}
   output+=previousPanel({...d,name:ex.name,sets:ex.sets.length},s.started);
@@ -2068,7 +2074,7 @@ async function gymCity(q){
  }
 }
 
-const APP_VERSION='1.21.2',APP_UPDATED_AT='2026-10-16T06:25:50.928Z';
+const APP_VERSION='1.21.3',APP_UPDATED_AT='2026-10-16T06:30:14.194Z';
 let latestVersion=null,latestStamp=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'medium',timeZoneName:'short'}).format(new Date(v))}catch{return 'Unknown'}}
 function versionPanel(){
