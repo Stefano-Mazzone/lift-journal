@@ -466,7 +466,18 @@ body.lj-video-open{overflow:hidden}
 .lj-music-box input{width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px;margin:5px 0 10px}
 .lj-music-song{padding:12px 0;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:9px}
 .lj-music-song div{min-width:0;overflow-wrap:anywhere}.lj-music-song strong{display:block}.lj-music-song .btn{flex:0 0 auto}
-</style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div id="lj-music-modal" class="lj-music-modal" hidden></div><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="running">♢<br>Running</button><button data-tab="feedback">✉<br>Feedback</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script>
+
+.lj-spotify-playing{position:fixed;z-index:9;left:50%;transform:translateX(-50%);bottom:calc(93px + env(safe-area-inset-bottom));width:min(calc(100% - 28px),720px);padding:11px 13px;border-radius:14px;background:#143a2c;border:1px solid #45966a;box-shadow:0 10px 30px #0008;display:flex;align-items:center;gap:13px;justify-content:space-between;overflow:hidden}
+.lj-spotify-playing[hidden]{display:none!important}
+.lj-spotify-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.lj-spotify-source{font-size:10px;color:#acf2c5;letter-spacing:.04em;font-weight:750;text-transform:uppercase}
+.lj-spotify-track{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lj-spotify-artist{font-size:12px;color:#c7dfd3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lj-spotify-open{color:#adf4d1;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap}
+#lj-spotify-connect{padding:14px;background:var(--surface2);border:1px solid var(--line);border-radius:12px;margin:16px 0}
+#lj-spotify-connect h3{font-size:15px;margin-bottom:8px}
+#lj-spotify-connect .note{margin:9px 0 0}
+</style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div id="lj-music-modal" class="lj-music-modal" hidden></div><div id="lj-spotify-playing" class="lj-spotify-playing" hidden></div><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="running">♢<br>Running</button><button data-tab="feedback">✉<br>Feedback</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script src="./spotify-config.js"></script><script src="./spotify-now.js"></script><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Program changes are manual. Each program repeats A/B/C until the user advances.
@@ -923,6 +934,7 @@ function musicMarkup(){
  '<p class="muted">Hear something great at the gym? Recognize it with Shazam, then save the song here.</p>'+
  '<a class="btn lj-music-link" href="https://www.shazam.com/" target="_blank" rel="noopener noreferrer">Recognize with Shazam ↗</a>'+
  '<p class="note">Opens official Shazam recognition in your browser. Allow microphone access there. Return to Lift Journal to save the title and artist. Lift Journal does not record audio or automatically receive Shazam results.</p>'+
+ '<div id="lj-spotify-connect"></div><p class="note"><strong>Apple Music:</strong> Safari cannot read songs playing in the separate Apple Music iPhone app. We do not show an inaccurate now-playing status.</p>'+
  '<h3 style="margin-top:20px">Save the song</h3><form id="lj-music-form">'+
  '<label class="input-label" for="lj-song-title">Song title</label><input id="lj-song-title" maxlength="100" autocomplete="off" required placeholder="Song title">'+
  '<label class="input-label" for="lj-song-artist">Artist</label><input id="lj-song-artist" maxlength="100" autocomplete="off" required placeholder="Artist">'+
@@ -934,6 +946,7 @@ function musicMarkup(){
 function openMusic(){
  const modal=document.getElementById('lj-music-modal');if(!modal)return;
  musicPreviousFocus=document.activeElement;modal.innerHTML=musicMarkup();modal.hidden=false;
+ window.LJSpotify?.renderControls();
  modal.querySelector('[data-music-close]')?.focus();
 }
 function closeMusic(){
@@ -945,6 +958,7 @@ function refreshMusic(){
  if(!modal||modal.hidden)return;
  const scroll=modal.querySelector('.lj-music-box')?.scrollTop||0;
  modal.innerHTML=musicMarkup();
+ window.LJSpotify?.renderControls();
  if(modal.querySelector('.lj-music-box'))modal.querySelector('.lj-music-box').scrollTop=scroll;
 }
 function saveMusic(){
@@ -3755,8 +3769,8 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.27.4',APP_UPDATED_AT='2026-10-17T03:22:00.000Z';
-const APP_RELEASE_NOTES=["Added Find Song access throughout the app, including during gym workouts.","Open official Shazam recognition and save discovered titles and artists in Gym Songs.","Gym Songs remain on this device and are included in exported and imported backups."],APP_RECENT_HIGHLIGHTS=["Watch exercise demonstration videos inside Lift Journal.","Plan and log running workouts.","Send feedback and see recent app improvements."];
+const APP_VERSION='1.27.5',APP_UPDATED_AT='2026-10-17T04:15:00.000Z';
+const APP_RELEASE_NOTES=["Prepared optional read-only Spotify Now Playing to show active Spotify tracks only.","Spotify account authorization requires developer configuration before it can be used.","Apple Music playing in a separate iPhone app cannot be detected reliably in a web app."],APP_RECENT_HIGHLIGHTS=["Recognize songs with Shazam and save discoveries to Gym Songs.","Watch exercise demos without leaving Lift Journal.","Plan and log running workouts."];
 let latestVersion=null,latestStamp=null,latestNotes=null,latestHighlights=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){
  if(typeof v!=='string'||!v.trim())return '';
@@ -4069,5 +4083,6 @@ document.addEventListener('change',async e=>{
 render();
 updateStorageWarning();
 initTabNavigation();
+window.LJSpotify?.start();
 })();
 </script></body></html>
