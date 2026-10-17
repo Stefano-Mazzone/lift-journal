@@ -1,13 +1,14 @@
 {
-  "version": "1.27.3",
-  "updatedAt": "2026-10-17T03:05:56.396Z",
+  "version": "1.27.4",
+  "updatedAt": "2026-10-17T03:22:00.000Z",
   "notes": [
-    "Update dates now appear only when they can be displayed correctly.",
-    "Added a What's New section explaining each release in simple language."
+    "Added Find Song access throughout the app, including during gym workouts.",
+    "Open official Shazam recognition and save discovered titles and artists in Gym Songs.",
+    "Gym Songs remain on this device and are included in exported and imported backups."
   ],
   "recentHighlights": [
-    "Play exercise demonstration videos directly in Lift Journal.",
-    "Plan and log running workouts in the Running tab.",
-    "Share suggestions and report problems in the Feedback hub."
+    "Watch exercise demonstration videos inside Lift Journal.",
+    "Plan and log running workouts.",
+    "Send feedback and see recent app improvements."
   ]
 }
