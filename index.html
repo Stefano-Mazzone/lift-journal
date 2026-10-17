@@ -1103,7 +1103,7 @@ function runningInfo(){
  if(!data.running||typeof data.running!=='object'||Array.isArray(data.running))
   data.running={goal:'fitness',level:'new',days:3,logs:[]};
  const r=data.running;
- if(!RUN_FOCUSES[r.goal])r.goal='fitness';
+ if(!Object.prototype.hasOwnProperty.call(RUN_FOCUSES,r.goal))r.goal='fitness';
  if(!['new','regular','experienced'].includes(r.level))r.level='new';
  if(!Number.isInteger(r.days)||r.days<2||r.days>5)r.days=3;
  if(!Array.isArray(r.logs))r.logs=[];
@@ -1112,7 +1112,7 @@ function runningInfo(){
 function runningWeek(info){
  const r=info||runningInfo(),first=r.level==='new';
  const base=first?20:r.level==='regular'?35:45;
- const easy=Math.min(90,base+(r.goal==='ten'?5:r.goal==='half'?10:0));
+ const easy=first?20:Math.min(90,base+(r.goal==='ten'?5:r.goal==='half'?10:0));
  const long=Math.min(120,Math.round(easy*(first?1.25:1.55)/5)*5);
  const easyDescription=first?'Conversational walk/run intervals; alternate gentle jogs and walking breaks as needed.':'Comfortable conversational pace. Keep most running easy.';
  const result=[
@@ -1135,7 +1135,7 @@ function runnerPace(km,minutes){
 }
 function saveRunningPreferences(){
  const goal=document.getElementById('running-goal')?.value,level=document.getElementById('running-level')?.value,days=Number(document.getElementById('running-days')?.value);
- if(!RUN_FOCUSES[goal]||!['new','regular','experienced'].includes(level)||!Number.isInteger(days)||days<2||days>5)return;
+ if(!Object.prototype.hasOwnProperty.call(RUN_FOCUSES,goal)||!['new','regular','experienced'].includes(level)||!Number.isInteger(days)||days<2||days>5)return;
  const old=JSON.parse(JSON.stringify(runningInfo())),r=runningInfo();
  Object.assign(r,{goal,level,days});
  if(!save()){data.running=old;return}
@@ -1172,7 +1172,7 @@ function runningPage(){
  const choices=(values,current)=>values.map(([v,label])=>'<option value="'+v+'"'+(v===current?' selected':'')+'>'+label+'</option>').join('');
  const summary=logs.length?'<p class="note">'+logs.length+' runs logged · '+(logs.reduce((n,x)=>n+Number(x.distance||0),0)).toFixed(1)+' km total on this device</p>':'<p class="muted">No runs logged yet.</p>';
  return header('<h1>Running</h1><p class="sub">Build a sustainable running routine and log your distance, time and effort.</p>')+
- '<section class="card"><h2>My running plan</h2><p class="note">These are weekly session ideas, not a medically individualized training plan. Start at your current ability; avoid sudden increases in total running volume.</p>'+
+ '<section class="card"><h2>Weekly running workout ideas</h2><p class="note">These workouts are starting-point suggestions, not a complete progressive race training plan. Adjust duration to your current baseline, include rest, and avoid sudden increases in total running volume. For a half-marathon, a structured progression is needed beyond this weekly outline.</p>'+
  '<form id="running-preferences"><label class="input-label" for="running-goal">Running goal</label><select id="running-goal">'+choices(Object.entries(RUN_FOCUSES),r.goal)+'</select>'+
  '<div class="running-fields"><div><label class="input-label" for="running-level">Experience</label><select id="running-level">'+choices([['new','New / returning'],['regular','Regular runner'],['experienced','Experienced runner']],r.level)+'</select></div>'+
  '<div><label class="input-label" for="running-days">Run days per week</label><select id="running-days">'+choices([[2,'2 days'],[3,'3 days'],[4,'4 days'],[5,'5 days']].map(([v,l])=>[String(v),l]),String(r.days))+'</select></div></div>'+
@@ -1532,8 +1532,8 @@ function coachInterpretRequest(raw){
  const timeMention=q.match(/\b(\d{1,3})[\s-]*(?:min(?:ute)?s?|mins?)\b/);
  if(timeMention&&![20,30,45,60].includes(Number(timeMention[1])))
   return {reply:'The current workout planner supports 20, 30, 45 or 60 minutes per session. Which duration would you prefer?'};
- if(/\b(yoga|pilates|marathon|cycling|biking|swimming|running|run training|meal plan|diet plan)\b/.test(q))
-  return {reply:'This coach currently builds resistance-training workouts. Yoga, endurance sports and meal planning are not yet supported in this feature.'};
+ if(/\b(yoga|pilates|marathon|cycling|biking|swimming|running|runner|run training|5k|10k|half marathon|meal plan|diet plan)\b/.test(q))
+  return {reply:'For running sessions and race-focused workout ideas, open the Running tab. This Coach currently handles resistance training. Yoga, swimming and meal plans are not supported here.'};
  if(/\b(chest pain|chest discomfort|faint|fainting|dizzy|dizziness|shortness of breath|can't breathe|injur(?:y|ed)|pain|sprain|strain|recovering from surgery)\b/.test(q)){
   return {reply:'You mentioned pain, an injury, or a possible warning symptom. I cannot determine which exercises are safe from a chat. Please complete the app’s readiness check, and seek individualized medical advice where appropriate. I won’t create a workout from this request.'};
  }
@@ -3659,7 +3659,7 @@ function validateBackupFile(parsed){
   throw Error('Invalid nutrition log in backup.');
  if(obj.running!==undefined){
   const r=obj.running;
-  if(!backupRecord(r)||!RUN_FOCUSES[r.goal]||!['new','regular','experienced'].includes(r.level)||
+  if(!backupRecord(r)||!Object.prototype.hasOwnProperty.call(RUN_FOCUSES,r.goal)||!['new','regular','experienced'].includes(r.level)||
    !Number.isInteger(r.days)||r.days<2||r.days>5||!Array.isArray(r.logs)||r.logs.length>400||
    r.logs.some(x=>!backupRecord(x)||typeof x.id!=='string'||x.id.length>80||
     !/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||''))||
