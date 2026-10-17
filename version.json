@@ -1,14 +1,14 @@
 {
-  "version": "1.27.4",
-  "updatedAt": "2026-10-17T03:22:00.000Z",
+  "version": "1.27.5",
+  "updatedAt": "2026-10-17T04:15:00.000Z",
   "notes": [
-    "Added Find Song access throughout the app, including during gym workouts.",
-    "Open official Shazam recognition and save discovered titles and artists in Gym Songs.",
-    "Gym Songs remain on this device and are included in exported and imported backups."
+    "Prepared Spotify Now Playing: an optional read-only music bar that appears only when an authorized Spotify account is actively playing a track.",
+    "Added Spotify connection controls to Find Song; a Spotify developer Client ID must be configured before sign-in works.",
+    "Apple Music played separately on iPhone cannot be reliably detected by a web app, so no inaccurate status is shown."
   ],
   "recentHighlights": [
-    "Watch exercise demonstration videos inside Lift Journal.",
-    "Plan and log running workouts.",
-    "Send feedback and see recent app improvements."
+    "Identify music with Shazam and save songs to your Gym Songs list.",
+    "Watch exercise demonstration videos inside the app.",
+    "Plan and log running workouts."
   ]
 }
