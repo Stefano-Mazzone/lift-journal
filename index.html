@@ -3763,6 +3763,13 @@ function validateBackupFile(parsed){
  if(obj.schedule!==undefined&&!backupRecord(obj.schedule))throw Error('Invalid schedule in backup.');
  if(obj.nutrition!==undefined&&(!backupRecord(obj.nutrition)||!backupRecord(obj.nutrition.entries)))
   throw Error('Invalid nutrition log in backup.');
+ if(obj.movementVideoLinks!==undefined){
+  const videos=obj.movementVideoLinks;
+  if(!backupRecord(videos)||Object.keys(videos).length>500||
+     Object.entries(videos).some(([name,url])=>!name.trim()||name.length>120||
+       typeof url!=='string'||!safeMovementVideoUrl(url)))
+   throw Error('Invalid exercise video links in backup. No data was changed.');
+ }
  if(obj.running!==undefined){
   const r=obj.running;
   if(!backupRecord(r)||!Object.prototype.hasOwnProperty.call(RUN_FOCUSES,r.goal)||!['new','regular','experienced'].includes(r.level)||
@@ -3814,6 +3821,7 @@ function preparedBackupData(obj){
   favoriteMovements:Array.isArray(obj.favoriteMovements)?
    [...new Set(obj.favoriteMovements.filter(x=>typeof x==='string'&&x.trim()&&x.length<=90).map(x=>x.trim()))].slice(0,400):[],
   nutrition:obj.nutrition||{goal:2000,entries:{}},
+  movementVideoLinks:obj.movementVideoLinks||{},
   running:obj.running||{goal:'fitness',level:'new',days:3,logs:[]}};
 }
 document.addEventListener('change',async e=>{
