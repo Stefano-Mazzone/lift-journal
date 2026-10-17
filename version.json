@@ -1,4 +1,13 @@
 {
-  "version": "1.27.2",
-  "updatedAt": "2026-10-17T02:34:08.112Z"
+  "version": "1.27.3",
+  "updatedAt": "2026-10-17T03:05:56.396Z",
+  "notes": [
+    "Update dates now appear only when they can be displayed correctly.",
+    "Added a What's New section explaining each release in simple language."
+  ],
+  "recentHighlights": [
+    "Play exercise demonstration videos directly in Lift Journal.",
+    "Plan and log running workouts in the Running tab.",
+    "Share suggestions and report problems in the Feedback hub."
+  ]
 }
