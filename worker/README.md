@@ -22,6 +22,20 @@ Cloudflare has a **GitHub integration**, so you do **not** need a local terminal
 6. Cloudflare will show a public Worker URL resembling `https://lift-journal-coach.<your-subdomain>.workers.dev`. Edit [coach-config.js](https://github.com/Stefano-Mazzone/lift-journal/blob/main/coach-config.js) in GitHub to set **endpoint** to that URL and **turnstileSiteKey** to your *public* site key.
 7. When GitHub Pages publishes the change, open Lift Journal → **Coach**. Complete the verification and submit a workout request. The Cloudflare AI will be connected. Your existing on-device coach is always available if the Worker is unavailable.
 
+### Enable no-account feedback (recommended after deployment)
+
+The **Feedback** tab works immediately with a GitHub-sign-in fallback. To let users submit feedback directly without creating their own GitHub accounts, complete this optional setup:
+
+1. In GitHub account settings, create a **fine-grained personal access token** restricted to **Stefano-Mazzone/lift-journal** with **Issues: Read and write** permission and no other repository permissions. Use an appropriate expiration and rotate it as needed. This is a privileged credential.
+2. In your Cloudflare Worker → **Settings → Variables and Secrets**, add a **Secret** named exactly \`GITHUB_FEEDBACK_TOKEN\`. Paste the token **only into Cloudflare's secure secret field** — never into GitHub, the public app, or ChatGPT.
+3. Deploy the latest \`worker/wrangler.json\` configuration, which includes the separate \`FEEDBACK_RATE_LIMIT\` binding (2 requests per 60 seconds per edge location/IP). The same Turnstile settings from the AI setup protect feedback submissions.
+4. Once \`coach-config.js\` contains your public Worker URL and public Turnstile site key, users can submit feedback inside Lift Journal → **Feedback**, without a GitHub account.
+
+All submissions become **public GitHub issues**, not private messages. Warn users not to submit personally identifying, medical, or sensitive information. The Worker is the only code with permission to create GitHub issues. Users cannot update your app or code from the feedback form.
+
+You can review new feedback at [Lift Journal Issues](https://github.com/Stefano-Mazzone/lift-journal/issues), prioritize requests and decide whether to implement changes. In ChatGPT, ask **"Check Lift Journal feedback"** to retrieve issues from GitHub and draft a shortlist of improvements. Feedback does **not** appear automatically as incoming chat messages here, and no updates are pushed without your approval.
+
+
 If the Worker reports "AI not configured," confirm that the **Workers AI** and **COACH_RATE_LIMIT** bindings have been created from `wrangler.json`, and that `TURNSTILE_SECRET` exists in Worker settings. Cloudflare Builds deploys on new GitHub pushes, but the Worker is not live until the initial Cloudflare deployment succeeds.
 
 [Cloudflare GitHub deployment guide](https://developers.cloudflare.com/workers/ci-cd/builds/)
@@ -38,6 +52,14 @@ npx wrangler secret put TURNSTILE_SECRET
 ```
 
 After deployment, configure the same public Worker endpoint and public Turnstile site key in the repository's `coach-config.js`. Never put the private secret there.
+
+## Feedback review process
+
+- **New**: Submitted feedback arrives as a GitHub issue, typically titled \`[Bug report] …\`, \`[Feature request] …\`, \`[Workout feedback] …\` or \`[Other feedback] …\`.
+- **Triage**: Check for duplicates, reproduce bugs if possible, and ask follow-up questions publicly without requesting sensitive personal details. Add priority labels if desired.
+- **Approval**: The repository owner decides what should change. A suggestion is not a release authorization.
+- **Release**: Only after approval, change the app in GitHub, review and test the code, update the version, and publish it via GitHub Pages.
+- **Close**: Link the implementing commit or version from the issue, or explain why a request is deferred or declined.
 
 ## Important security and behavior notes
 
