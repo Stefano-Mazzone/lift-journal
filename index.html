@@ -429,6 +429,13 @@ h1{font-weight:750}h2{font-weight:710}
 .draft-exercise>.movement-video-link{margin:7px 0}
 @media(max-width:430px){.movement-video-link.compact{max-width:82px;font-size:10px;padding:6px 5px}
  .movement-entry{gap:4px}.movement-favorite{flex:0 0 38px;width:38px;height:38px}}
+.picker-demo-row{display:flex;gap:7px;align-items:stretch;margin-bottom:5px}
+.picker-demo-row .exercise-picker-item{flex:1 1 auto;min-width:0}
+.picker-demo-row .movement-video-link{flex:0 0 auto;align-self:center}
+.workout-exercise-preview>span{min-width:0;overflow-wrap:anywhere}
+.workout-exercise-preview .movement-video-link{margin-top:5px}
+@media(max-width:420px){.picker-demo-row .movement-video-link{max-width:90px;font-size:10px}}
+
 </style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="running">♢<br>Running</button><button data-tab="feedback">✉<br>Feedback</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -742,11 +749,11 @@ function exercisePickerListMarkup(){
  const filtered=all.filter(x=>(swapPicker.category==='All Exercises'||x.category===swapPicker.category)&&
    (!q||x.name.toLowerCase().includes(q)));
  const shown=filtered.slice(0,swapPicker.limit);
- const itemButton=(r,kind)=>'<button type="button" class="exercise-picker-item" data-picker-select="'+esc(r.name)+'" aria-label="Choose '+esc(r.name)+'">'+
+ const itemButton=(r,kind)=>'<div class="picker-demo-row"><button type="button" class="exercise-picker-item" data-picker-select="'+esc(r.name)+'" aria-label="Choose '+esc(r.name)+'">'+
   '<span class="exercise-picker-icon" aria-hidden="true">'+(kind==='recommended'?'↗':'•')+'</span>'+
   '<span class="exercise-picker-info"><strong>'+esc(r.name)+'</strong><small>'+
   esc(kind==='recommended'?r.reason+' · '+r.category:(trainerCaution(r.name,exerciseProfile).length?'Review Limitation: '+trainerCaution(r.name,exerciseProfile).join(', '):r.category))+'</small></span>'+
-  '<span class="exercise-picker-choose" aria-hidden="true">Select</span></button>';
+  '<span class="exercise-picker-choose" aria-hidden="true">Select</span></button>'+movementVideoLink(r.name,true)+'</div>';
  const recommendations=swapPicker.category==='All Exercises'?
   '<section class="exercise-picker-recommended"><h4>Recommended Alternatives</h4>'+
   '<p class="exercise-picker-description">'+(exerciseProfile?.limitStatus==='current'&&!trainerCanUse(current,exerciseProfile)?'No automatic substitute is recommended for a movement involving your reported current limitation. Review suitability with a qualified professional; the full library remains available for manual choices.':'Based on similar movement patterns, muscle groups and equipment. Suggestions are not individually assessed for your injuries or capabilities.')+'</p>'+
@@ -1075,7 +1082,7 @@ function selectedWorkoutPicker(ss,sessions){
   dailyChoiceInputs();
  const selection=dailyWorkoutPlan();
  const planOmitted=dailyChoice.mode==='plan'?cycleFor(month).days[chosen][1].length-selection[1].length:0;
- const preview=selection[1].map(e=>'<div class="workout-exercise-preview"><span>'+esc(e.name)+
+ const preview=selection[1].map(e=>'<div class="workout-exercise-preview"><span>'+esc(e.name)+'<br>'+movementVideoLink(e.name,true)+
   '</span><strong>'+e.sets+' × '+esc(e.reps)+'</strong></div>').join('');
  const warnings=selection[1].flatMap(e=>trainerCaution(e.name,data.trainerProfile)).length?
   '<p class="trainer-safety-hint">Review exercises involving previously reported limitation areas. This is not medical clearance.</p>':'';
@@ -2399,11 +2406,36 @@ function toggleMovementFavorite(name){
 }
 // Exact exercise videos are curated. Unmatched variations use a prefilled YouTube video search.
 const MOVEMENT_DEMO_VIDEOS=Object.freeze({
- 'pendulum squat':'https://www.youtube.com/watch?v=BdcZWDiIwXA',
- 'goblet squat':'https://www.youtube.com/watch?v=9KzZD_n2r64',
- 'dumbbell goblet squat':'https://www.youtube.com/watch?v=9KzZD_n2r64',
+ 'pendulum squat':'https://www.youtube.com/watch?v=Nmq-8AK-GJQ',
+ 'goblet squat':'https://www.youtube.com/watch?v=Z_e7HVr5-nI',
+ 'dumbbell goblet squat':'https://www.youtube.com/watch?v=Z_e7HVr5-nI',
  'lat pulldown':'https://www.youtube.com/watch?v=CAwf7n6Luuc',
- 'seated cable row':'https://www.youtube.com/watch?v=EhAho9Szp-0'
+ 'wide-grip lat pulldown':'https://www.youtube.com/watch?v=CAwf7n6Luuc',
+ 'seated cable row':'https://www.youtube.com/watch?v=GZbfZ033f74',
+ 'cable face pull':'https://www.youtube.com/watch?v=0Po47vvj9g4',
+ 'face pull':'https://www.youtube.com/watch?v=0Po47vvj9g4',
+ 'one-arm dumbbell row':'https://www.youtube.com/watch?v=dFzUjzfih7k',
+ 'dumbbell row':'https://www.youtube.com/watch?v=dFzUjzfih7k',
+ 'dumbbell bench press':'https://www.youtube.com/watch?v=Y_7aHqXeCfQ',
+ 'flat dumbbell bench press':'https://www.youtube.com/watch?v=Y_7aHqXeCfQ',
+ 'flat dumbbell chest press':'https://www.youtube.com/watch?v=Y_7aHqXeCfQ',
+ 'dumbbell romanian deadlift':'https://www.youtube.com/watch?v=hQgFixeXdZo',
+ 'dumbbell lateral raise':'https://www.youtube.com/watch?v=WJm9zA2NY8E',
+ 'push-up':'https://www.youtube.com/watch?v=IODxDxX7oi4',
+ 'machine chest press':'https://www.youtube.com/watch?v=xUm0BiZCWlQ',
+ 'chest press machine':'https://www.youtube.com/watch?v=xUm0BiZCWlQ',
+ 'hammer curl':'https://www.youtube.com/watch?v=zC3nLlEvin4',
+ 'barbell hip thrust':'https://www.youtube.com/watch?v=LM8XHLYJoYs',
+ 'romanian deadlift':'https://www.youtube.com/watch?v=JCXUYuzwNrM',
+ 'back squat':'https://www.youtube.com/watch?v=ultWZbUMPL8',
+ 'inverted row':'https://www.youtube.com/watch?v=XZV9IwluPjw',
+ 'neutral-grip lat pulldown':'https://www.youtube.com/watch?v=ImATh1ZTffc',
+ 'underhand lat pulldown':'https://www.youtube.com/watch?v=BwPiRfNBb4g',
+ 'incline dumbbell bench press':'https://www.youtube.com/watch?v=0G2_XV7slIg',
+ 'incline dumbbell press':'https://www.youtube.com/watch?v=0G2_XV7slIg',
+ 'leg extension machine':'https://www.youtube.com/watch?v=YyvSfVjQeL0',
+ 'glute bridge':'https://www.youtube.com/watch?v=JpDDoINkrog',
+ 'plank':'https://www.youtube.com/watch?v=Ym35c5pKRDo'
 });
 function movementVideoKey(name){return String(name||'').trim().toLowerCase()}
 function safeMovementVideoUrl(value){
