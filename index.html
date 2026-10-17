@@ -404,7 +404,7 @@ h1{font-weight:750}h2{font-weight:710}
 .runner-session{border-bottom:1px solid var(--line);padding:12px 0}
 .runner-session-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .runner-session-heading span{font-size:12px;white-space:nowrap;color:var(--accent);font-weight:800}
-.runner-session p{margin:5px 0 0}
+.runner-session p{margin:5px 0 0}.feedback-challenge{margin:15px 0 6px}#feedback-status{overflow-wrap:anywhere}
 .runner-log-row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:13px 0}
 .runner-log-row>div{min-width:0;overflow-wrap:anywhere}.runner-log-row p{margin:5px 0}
 .runner-log-row button{align-self:flex-start}
@@ -1201,28 +1201,93 @@ function runnerStrengthProgram(){
 }
 
 const LIFT_FEEDBACK_ISSUES='https://github.com/Stefano-Mazzone/lift-journal/issues';
+let feedbackSending=false;
 function feedbackPage(){
+ const active=!!coachAISettings();
  return header('<h1>Feedback Hub</h1><p class="sub">Help shape the next versions of Lift Journal.</p>')+
- '<section class="card"><h2>Send feedback</h2><p class="note">Report a problem, suggest a new feature, or tell us how your training is going. Do not include names, email addresses, passwords, medical details or other private information.</p>'+
+ '<section class="card"><h2>Send feedback</h2><p class="note">Report a problem or suggest something new. Please do not include your real name, email, password, medical information or other private details. Submitted issues are PUBLIC.</p>'+
  '<form id="feedback-form"><label class="input-label" for="feedback-kind">Type</label><select id="feedback-kind">'+
  '<option value="Bug report">Something is broken</option><option value="Feature request">Feature idea</option><option value="Workout feedback">Workout / running feedback</option><option value="Other feedback">Other</option></select>'+
- '<label class="input-label" for="feedback-title">Short title</label><input id="feedback-title" maxlength="95" required placeholder="e.g. Let me edit my run distance">'+
- '<label class="input-label" for="feedback-details">Details</label><textarea id="feedback-details" maxlength="2000" rows="5" required placeholder="What happened, or what would you like to change?"></textarea>'+
- '<button type="submit" class="btn">Continue to submit feedback</button></form>'+
- '<p class="note">Feedback is submitted as a public GitHub issue. GitHub sign-in is required. You will review the issue on GitHub before posting. The form does not automatically send anything from Lift Journal.</p></section>'+
- '<section class="card"><h2>Community feedback queue</h2><p class="note">Open suggestions are tracked as GitHub issues, where the app owner can review, comment, prioritize and choose what to build. Submitting feedback does not automatically change the app.</p>'+
- '<a class="btn secondary" href="'+LIFT_FEEDBACK_ISSUES+'" target="_blank" rel="noopener noreferrer">View feedback and requests</a></section>';
+ '<label class="input-label" for="feedback-title">Short title</label><input id="feedback-title" maxlength="95" minlength="5" required placeholder="e.g. Let me edit my run distance">'+
+ '<label class="input-label" for="feedback-details">Details</label><textarea id="feedback-details" minlength="10" maxlength="2000" rows="5" required placeholder="What happened, or what would you like to change?"></textarea>'+
+ '<div class="hide" aria-hidden="true"><label>Website<input id="feedback-website" tabindex="-1" autocomplete="off"></label></div>'+
+ (active?'<div id="feedback-challenge" class="feedback-challenge"></div><p class="note" id="feedback-verify-status" role="status">Complete the verification to submit without a GitHub account.</p>':'')+
+ '<button type="submit" id="feedback-send" class="btn">'+(active?'Submit feedback without an account':'Continue on GitHub to submit')+'</button></form>'+
+ '<p class="note" id="feedback-status" role="status" aria-live="polite">'+
+ (active?'Your feedback goes through Cloudflare into our public GitHub review queue. No GitHub sign-in is required.':'GitHub sign-in is required until the feedback service is connected. You will review your issue on GitHub before posting.')+'</p>'+
+ '<button class="btn secondary" type="button" data-action="feedback-github" style="margin-top:10px;width:100%">Use GitHub instead</button></section>'+
+ '<section class="card"><h2>Community feedback queue</h2><p class="note">Suggestions and bug reports are tracked as public GitHub issues. The app owner reviews them and chooses whether to implement, postpone or decline each idea. Feedback never changes the app automatically.</p>'+
+ '<a class="btn secondary" href="'+LIFT_FEEDBACK_ISSUES+'" target="_blank" rel="noopener noreferrer">View community requests</a></section>';
 }
-function submitFeedback(){
+function readFeedbackFields(){
  const kind=document.getElementById('feedback-kind')?.value;
  const title=document.getElementById('feedback-title')?.value?.trim()||'';
  const details=document.getElementById('feedback-details')?.value?.trim()||'';
  if(!['Bug report','Feature request','Workout feedback','Other feedback'].includes(kind)||title.length<5||title.length>95||details.length<10||details.length>2000){
-  alert('Add a clear title (5–95 characters) and details (10–2000 characters).');return
+  alert('Add a clear title (5–95 characters) and details (10–2000 characters).');return null
  }
- const body=['**Type:** '+kind,'','**Feedback:**',details,'','**Source:** Lift Journal feedback hub','**App version:** '+APP_VERSION].join('\n');
- const url=LIFT_FEEDBACK_ISSUES+'/new?'+new URLSearchParams({title:'['+kind+'] '+title,body}).toString();
- location.assign(url);
+ return {kind,title,details,version:APP_VERSION,website:document.getElementById('feedback-website')?.value||''};
+}
+function githubFeedbackLink(form){
+ const body=['**Type:** '+form.kind,'','**Feedback:**',form.details,'',
+  '**Source:** Lift Journal feedback hub','**App version:** '+APP_VERSION].join('\n');
+ return LIFT_FEEDBACK_ISSUES+'/new?'+new URLSearchParams({title:'['+form.kind+'] '+form.title,body}).toString();
+}
+function submitFeedbackViaGitHub(){
+ const form=readFeedbackFields();
+ if(!form)return;
+ location.assign(githubFeedbackLink(form));
+}
+async function mountFeedbackVerification(){
+ if(!coachAISettings()||tab!=='feedback'||!document.getElementById('feedback-challenge'))return;
+ try{
+  await loadCoachVerification();
+  if(tab!=='feedback'||!document.getElementById('feedback-challenge')||coachTurnstileId!==null)return;
+  coachTurnstileId=window.turnstile.render('#feedback-challenge',{
+   sitekey:coachAISettings().turnstileSiteKey,theme:'auto',size:'flexible',
+   callback:()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verified — ready to send feedback.'},
+   'expired-callback':()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verification expired. Please verify again.'},
+   'error-callback':()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verification failed. Try again or submit through GitHub.'}
+  });
+ }catch{
+  const el=document.getElementById('feedback-verify-status');
+  if(el)el.textContent='Verification unavailable. You can still use GitHub instead.';
+ }
+}
+async function submitFeedback(){
+ const form=readFeedbackFields();
+ if(!form||feedbackSending)return;
+ const settings=coachAISettings();
+ if(!settings){location.assign(githubFeedbackLink(form));return}
+ const message=document.getElementById('feedback-status');
+ const button=document.getElementById('feedback-send');
+ const token=coachTurnstileId!==null?window.turnstile?.getResponse(coachTurnstileId):null;
+ if(!token){if(message)message.textContent='Complete the verification above, or use GitHub instead.';return}
+ feedbackSending=true;
+ if(button){button.disabled=true;button.textContent='Submitting feedback…'}
+ if(message)message.textContent='Submitting feedback to the review queue…';
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+ try{
+  const response=await fetch(settings.endpoint+'/feedback',{
+   method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
+   body:JSON.stringify({...form,turnstileToken:token})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw Error(String(result.error||'Could not submit feedback.'));
+  if(!/^https:\/\/github\.com\/Stefano-Mazzone\/lift-journal\/issues\/\d+$/.test(result.url))throw Error('Submission confirmation could not be verified.');
+  if(message&&document.getElementById('feedback-status')===message){
+   message.textContent='Feedback received! It is now in the public review queue. ';
+   const link=document.createElement('a');link.href=result.url;link.textContent='View your feedback';link.target='_blank';link.rel='noopener noreferrer';message.appendChild(link);
+  }
+  document.getElementById('feedback-form')?.reset();
+ }catch(error){
+  if(message&&document.getElementById('feedback-status')===message)
+   message.textContent=(error.name==='AbortError'?'Feedback request timed out.':String(error.message||'Service unavailable.'))+' Your text is still in the form. Please try again or choose GitHub instead.';
+ }finally{
+  clearTimeout(timer);feedbackSending=false;
+  if(button&&document.getElementById('feedback-send')===button){button.disabled=false;button.textContent='Submit feedback without an account'}
+  if(coachTurnstileId!==null&&window.turnstile)try{window.turnstile.reset(coachTurnstileId)}catch(e){}
+ }
 }
 function home(){
  if(!data.hasProgram)return header('<div class="setup-welcome"><span class="workout-picker-step">WELCOME TO LIFT JOURNAL</span><h1>'+((data.program?.history?.length||Object.keys(data.sessions||{}).length)?'Build Your Next Program':'Build Your First Program')+'</h1><p class="sub">Answer three quick questions, preview the workouts, then activate your program. Your calendar and weekly schedule will appear afterward.</p></div>')+planBuilder();
@@ -3486,7 +3551,7 @@ function clearWorkoutsAndRestartProgram(){
 }
 function settings(){return header(`<h1>Settings & backup</h1><p class="sub">Choose your preferred unit and keep a copy of your history.</p>`)+versionPanel()+`<section class="card"><h2>Weight units</h2><label class="input-label" for="unit">How do you track lifting weight?</label><select id="unit"><option value="lb" ${data.unit==='lb'?'selected':''}>Pounds (lb)</option><option value="kg" ${data.unit==='kg'?'selected':''}>Kilograms (kg)</option></select><p class="note">Changing the label does not convert numbers you previously entered.</p></section><section class="card"><h2>Your data</h2><p class="muted">Workouts save automatically in this browser using local storage, not in a cloud account. Keep periodic backup files, especially before clearing browser data or changing phones.</p><p class="note">This device currently has <strong>${Object.keys(data.sessions||{}).length} saved workouts</strong> and <strong>${(data.favoriteMovements||[]).length} favorite movements</strong>. You can export them with your program and food entries. The app cannot verify whether a backup is saved in iCloud or elsewhere.</p>${initialLoadError?'<p class="storage-settings-alert">Stored data could not be loaded. Its original bytes have been left untouched. Do not create new entries until you restore a valid backup.</p>':''}<div class="stack">${button('Export backup (.json)','export','secondary')}<label class="btn secondary" style="text-align:center;cursor:pointer">Import backup (.json)<input id="import" class="hide" type="file" accept=".json,application/json"></label></div></section><details class="card settings-guide"><summary>Using Lift Journal on iPhone or Android</summary><p class="muted">On iPhone, open the link in Safari and choose Share → Add to Home Screen. On Android, open it in Chrome and choose the browser menu → Add to Home screen (or Install app when available). Both use the same web app and receive its updates.</p><p class="note">Workout and calorie records are saved locally in each browser/device. They do not sync automatically between an iPhone and Android phone. Use Export Backup and Import Backup when transferring data. Camera barcode scanning and location search require browser permissions, internet and a compatible device.</p></details><details class="card settings-guide"><summary>Previous Weights & Progression</summary><p class="muted">Lift Journal compares the same exercise name across your completed workout history, including earlier programs. Only checked sets with reps and weights count. If all prescribed sets reached the top of the current rep range at the same weight, it may suggest a small increase. Otherwise it recommends holding or building reps first.</p><p class="note">Recommendations are guidelines, not automatic weight changes. Prioritize technique and comfort. New sessions save their weight unit; older entries may not identify whether you originally logged pounds or kilograms.</p></details><details class="card settings-guide"><summary>Training Guidance</summary><p class="muted">Start each workout with 5–10 minutes of easy movement and warm-up sets. Pick weights that let you finish with ~1–3 good reps left in reserve. When you reach the top of the target range for all sets, increase weight a little next time. Rest 1–2 minutes for accessory lifts and about 2–3 minutes for heavier compound lifts.</p><p class="muted">For single-leg or single-arm exercises, complete the prescribed reps on each side. Your program only changes when you choose Start next program. Four templates rotate in order, and workouts remain in your history. No equipment beyond your listed gym setup is required.</p></details><section class="card"><h2>Restart Current Program</h2><p class="note">Clears only the current program’s workouts and schedule. Previously completed programs and their workout history, nutrition, favorites and weight settings are kept. Export a backup if you want to retain the current program’s workouts too.</p>${button('Restart current program · keep past history','clear','danger')}</section>`}
 let ljLastRenderedTab=null;
-function render(){removeCoachVerification();if(day>=cycleFor(month).days.length)day=0;if(editing&&data.sessions[editing])tab='train';const changed=ljLastRenderedTab!==tab;el.innerHTML=({home,train,coach:coachPage,running:runningPage,feedback:feedbackPage,history,movements,calories,gyms:gymLocator,settings}[tab])();el.classList.toggle('lj-page-enter',changed);ljLastRenderedTab=tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b.dataset.tab===tab));updateTabArrows();if(tab==='coach')mountCoachVerification()}
+function render(){removeCoachVerification();if(day>=cycleFor(month).days.length)day=0;if(editing&&data.sessions[editing])tab='train';const changed=ljLastRenderedTab!==tab;el.innerHTML=({home,train,coach:coachPage,running:runningPage,feedback:feedbackPage,history,movements,calories,gyms:gymLocator,settings}[tab])();el.classList.toggle('lj-page-enter',changed);ljLastRenderedTab=tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b.dataset.tab===tab));updateTabArrows();if(tab==='coach')mountCoachVerification();if(tab==='feedback')mountFeedbackVerification()}
 
 function updateTabArrows(){
  const scroll=document.getElementById('nav-scroll'),dock=document.getElementById('nav-dock'),prev=document.getElementById('nav-prev'),next=document.getElementById('nav-next');
@@ -3528,7 +3593,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-daily-mode
  const next=monthSchedule().find(x=>x.date===today);selectedDate=today;selectedSlot=next?.slot||null;day=next?.day??0;
  resetDailyChoice();editing=null;editingPast=false;tab='train';render();
  document.getElementById('selected-workout-picker')?.scrollIntoView({behavior:'smooth',block:'nearest'});break;
-}case'advance':if(data.hasProgram){builderVisible=true;draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};tab='home';render();document.getElementById('program-builder')?.scrollIntoView({block:'start',behavior:'smooth'})}break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'coach-review':coachAction();break;case'runner-strength':runnerStrengthProgram();break;case'coach-local-fallback':coachOfflineFallback();break;case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'add-scanned':addScannedFood();break;case'scan-history-toggle':showAllScannedHistory=!showAllScannedHistory;render();break;case'manual-more':manualHistoryExpanded=!manualHistoryExpanded;render();break;case'show-builder':coachPendingPlan=null;builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;coachPendingPlan=null;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':coachPendingPlan=null;tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':coachPendingPlan=null;copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'daily-confirm':if(dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Do not begin this workout without addressing the health or pain concerns reported.');break}dailyCheck.confirmed=true;render();break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':clearWorkoutsAndRestartProgram();break}});
+}case'advance':if(data.hasProgram){builderVisible=true;draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};tab='home';render();document.getElementById('program-builder')?.scrollIntoView({block:'start',behavior:'smooth'})}break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'coach-review':coachAction();break;case'runner-strength':runnerStrengthProgram();break;case'feedback-github':submitFeedbackViaGitHub();break;case'coach-local-fallback':coachOfflineFallback();break;case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'add-scanned':addScannedFood();break;case'scan-history-toggle':showAllScannedHistory=!showAllScannedHistory;render();break;case'manual-more':manualHistoryExpanded=!manualHistoryExpanded;render();break;case'show-builder':coachPendingPlan=null;builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;coachPendingPlan=null;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':coachPendingPlan=null;tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':coachPendingPlan=null;copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'daily-confirm':if(dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Do not begin this workout without addressing the health or pain concerns reported.');break}dailyCheck.confirmed=true;render();break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':clearWorkoutsAndRestartProgram();break}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&swapPicker){e.preventDefault();closeExercisePicker();return}if(e.target.id==='gym-city'){gymSuggestionKeys(e);return}if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
 document.addEventListener('submit',e=>{if(e.target.id==='running-preferences'){e.preventDefault();saveRunningPreferences();return}if(e.target.id==='run-log-form'){e.preventDefault();addRunningLog();return}if(e.target.id==='feedback-form'){e.preventDefault();submitFeedback();return}if(e.target.id==='coach-form'){e.preventDefault();coachSendRequest(document.getElementById('coach-input')?.value);return}if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;
 if(t.dataset.painArea!==undefined){
