@@ -1,10 +1,10 @@
 {
-  "version": "1.28.0",
-  "updatedAt": "2026-10-17T04:22:00.000Z",
+  "version": "1.29.0",
+  "updatedAt": "2026-10-17T19:12:00.000Z",
   "notes": [
-    "Removed unused Shazam, Gym Songs, and Spotify controls.",
-    "Refreshed training dashboards, cards, buttons and mobile navigation.",
-    "Added a prominent Start today's workout button."
+    "Fixed installation on Android Chrome with a PWA manifest and proper icons.",
+    "Added a service worker for the basic app shell and an install shortcut in Settings.",
+    "Kept locally stored workout and nutrition data unchanged."
   ],
   "recentHighlights": [
     "Generate workouts from favorite exercises.",
