@@ -411,6 +411,24 @@ h1{font-weight:750}h2{font-weight:710}
 #run-log-form>button,#running-preferences>button,#feedback-form>button{width:100%;margin-top:12px}
 #run-notes,#feedback-details{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit}
 @media(max-width:370px){.running-fields{grid-template-columns:1fr}}
+
+.movement-video-link{display:inline-flex;gap:5px;align-items:center;justify-content:center;
+ padding:8px 11px;border-radius:9px;border:1px solid #477c75;background:#173f3f;
+ color:#c4f6e6;font-size:12px;font-weight:750;line-height:1.3;text-decoration:none;
+ width:fit-content;max-width:100%;white-space:normal}
+.movement-video-link:hover{color:#fff;background:#235751}
+.movement-video-link:focus-visible{outline:3px solid #c4f6e6;outline-offset:2px}
+.movement-video-link.compact{font-size:11px;padding:6px 7px;text-align:center;align-self:center}
+.movement-entry .movement-choice{min-width:0;overflow-wrap:anywhere}
+.movement-video-panel{margin:10px 0 15px}
+.movement-video-panel>.note{margin:8px 0}
+.movement-video-panel summary{cursor:pointer;color:var(--muted);font-size:12px;text-decoration:underline}
+#movement-video-url{display:block;width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit}
+#movement-video-form button{margin-top:9px}
+.exercise>.movement-video-link{margin:7px 0 10px}
+.draft-exercise>.movement-video-link{margin:7px 0}
+@media(max-width:430px){.movement-video-link.compact{max-width:82px;font-size:10px;padding:6px 5px}
+ .movement-entry{gap:4px}.movement-favorite{flex:0 0 38px;width:38px;height:38px}}
 </style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="running">♢<br>Running</button><button data-tab="feedback">✉<br>Feedback</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1321,7 +1339,7 @@ function sessionView(){
  '<div class="row">'+button('← Back','back','secondary')+'<span class="hint">Weight ('+esc(s.unit||data.unit)+')</span></div>';
  s.exercises.forEach((ex,i)=>{
   const d=def[i]||{name:ex.originalName||ex.name,reps:'8–12',sets:ex.sets.length,rest:90},disabled=(s.finished&&!editingPast)||ex.skipped;
-  output+='<section class="exercise'+(ex.skipped?' exercise-skipped':'')+'"><h3>'+(i+1)+'. '+esc(ex.name)+(ex.skipped?' (Skipped)':'')+'</h3>';
+  output+='<section class="exercise'+(ex.skipped?' exercise-skipped':'')+'"><h3>'+(i+1)+'. '+esc(ex.name)+(ex.skipped?' (Skipped)':'')+'</h3>'+movementVideoLink(ex.name);
   output+='<small>Plan: '+d.sets+' × '+esc(d.reps)+' · Actual sets: '+ex.sets.length+' · Rest ~'+d.rest+'s</small>';
   if(ex.originalName)output+='<div class="exercise-sub">Substituted for '+esc(ex.originalName)+' · Only for '+esc(historyDateLabel(scheduledWorkoutDate(s)))+' · Other workouts unchanged</div>';
   output+=sessionMovementActions(ex,i,s);
@@ -1655,7 +1673,7 @@ function coachPage(){
   :coachRequest?coachPlanPreview(coachRequest):null;
  const previewMarkup=preview&&!preview.warning?'<section class="coach-preview"><h3>'+esc(preview.title)+'</h3>'+
  preview.days.map(([title,ex])=>'<div class="coach-preview-day"><strong>'+esc(title)+'</strong>'+
- ex.map(e=>'<div class="coach-preview-ex"><span>'+esc(e.name)+'</span><span>'+esc(e.sets)+' × '+esc(e.reps)+'</span></div>').join('')+'</div>').join('')+
+ ex.map(e=>'<div class="coach-preview-ex"><span>'+esc(e.name)+'<br>'+movementVideoLink(e.name,true)+'</span><span>'+esc(e.sets)+' × '+esc(e.reps)+'</span></div>').join('')+'</div>').join('')+
  '<p class="note">'+esc(preview.notes||'')+'</p>'+
  '<button class="btn coach-review" type="button" data-action="coach-review">'+
  (coachRequest.intent==='program'?'Review in Program Builder':'Review Today’s Workout')+'</button></section>':'';
@@ -2121,7 +2139,7 @@ function draftReview(){
   '<div class="draft-exercise-header"><span class="draft-exercise-num">Exercise '+(j+1)+'</span>'+
   '<button type="button" class="draft-remove" data-draft-remove="'+j+'" aria-label="Remove '+esc(ex.name)+'">Remove</button></div>'+
   '<label class="input-label" for="draft-ex-'+j+'">Exercise Name</label>'+
-  '<input id="draft-ex-'+j+'" data-draft-exname="'+j+'" maxlength="90" value="'+esc(ex.name)+'" autocomplete="off">'+
+  '<input id="draft-ex-'+j+'" data-draft-exname="'+j+'" maxlength="90" value="'+esc(ex.name)+'" autocomplete="off">'+movementVideoLink(ex.name,true)+
   '<div class="draft-two-fields"><label>Sets<input type="number" data-draft-sets="'+j+'" min="1" max="10" inputmode="numeric" value="'+esc(ex.sets)+'"></label>'+
   '<label>Rep Target<input data-draft-reps="'+j+'" maxlength="30" value="'+esc(ex.reps)+'"></label></div>'+
   '<p class="trainer-movement-explanation">'+esc('Why: '+(identifyExercise(ex.name).category||'General Exercise')+' · '+(draftPlan.trainerProfile?.experience==='beginner'?'Beginner-friendly starting volume.':'Adjustable training volume.'))+'</p>'+'<label class="input-label" for="draft-swap-'+j+'">Or Choose a Replacement</label>'+
@@ -2379,6 +2397,62 @@ function toggleMovementFavorite(name){
  if(!save()){data.favoriteMovements=previousFavorites;lastFavorite=previousLast;return}
  render();
 }
+// Exact exercise videos are curated. Unmatched variations use a prefilled YouTube video search.
+const MOVEMENT_DEMO_VIDEOS=Object.freeze({
+ 'pendulum squat':'https://www.youtube.com/watch?v=BdcZWDiIwXA',
+ 'goblet squat':'https://www.youtube.com/watch?v=9KzZD_n2r64',
+ 'dumbbell goblet squat':'https://www.youtube.com/watch?v=9KzZD_n2r64',
+ 'lat pulldown':'https://www.youtube.com/watch?v=CAwf7n6Luuc',
+ 'seated cable row':'https://www.youtube.com/watch?v=EhAho9Szp-0'
+});
+function movementVideoKey(name){return String(name||'').trim().toLowerCase()}
+function safeMovementVideoUrl(value){
+ if(typeof value!=='string'||value.length>500)return null;
+ try{
+  const url=new URL(value.trim());
+  return url.protocol==='https:'&&url.hostname&&url.hostname!=='localhost'&&!url.username&&!url.password?url.href:null;
+ }catch{return null}
+}
+function movementVideos(){return data.movementVideoLinks&&typeof data.movementVideoLinks==='object'&&!Array.isArray(data.movementVideoLinks)?data.movementVideoLinks:{}}
+function movementVideoInfo(name){
+ const key=movementVideoKey(name),custom=safeMovementVideoUrl(movementVideos()[key]);
+ if(custom)return {url:custom,hasVideo:true,custom:true};
+ if(Object.prototype.hasOwnProperty.call(MOVEMENT_DEMO_VIDEOS,key))
+  return {url:MOVEMENT_DEMO_VIDEOS[key],hasVideo:true,custom:false};
+ return {url:'https://www.youtube.com/results?search_query='+encodeURIComponent(String(name||'').slice(0,100)+' exercise how to proper form tutorial'),
+  hasVideo:false,custom:false};
+}
+function movementVideoLink(name,compact=false){
+ const info=movementVideoInfo(name),label=info.hasVideo?'Watch demo':'Find demo videos';
+ return '<a class="movement-video-link'+(compact?' compact':'')+'" href="'+esc(info.url)+
+ '" target="_blank" rel="noopener noreferrer" aria-label="'+esc(label+' for '+name+' (opens in new tab)')+
+ '" title="'+esc(label)+'"><span aria-hidden="true">▶</span> '+label+' <span aria-hidden="true">↗</span></a>';
+}
+function movementVideoSettings(name){
+ const key=movementVideoKey(name),saved=movementVideos()[key]||'',info=movementVideoInfo(name);
+ return '<div class="movement-video-panel">'+movementVideoLink(name)+
+ '<p class="note">'+(info.hasVideo?(info.custom?'Your saved video':'Reviewed exercise demonstration'):
+ 'Video search results for this exercise (no specific tutorial verified yet)')+'. Opens in YouTube or an external website.</p>'+
+ '<details><summary>Set a preferred video for this movement</summary>'+
+ '<form id="movement-video-form"><input type="hidden" id="movement-video-name" value="'+esc(name)+'">'+
+ '<label class="input-label" for="movement-video-url">YouTube or other HTTPS video URL</label>'+
+ '<input type="url" id="movement-video-url" maxlength="500" placeholder="https://www.youtube.com/watch?v=..." value="'+esc(saved)+'">'+
+ '<p class="note">Stored on this device and included in backups. Clear the field to restore the default.</p>'+
+ '<button class="btn tiny secondary" type="submit">Save preferred video</button></form></details></div>';
+}
+function saveMovementVideo(){
+ const name=document.getElementById('movement-video-name')?.value||'',key=movementVideoKey(name);
+ const raw=document.getElementById('movement-video-url')?.value.trim()||'';
+ if(!key||key.length>120)return;
+ const url=raw?safeMovementVideoUrl(raw):null;
+ if(raw&&!url){alert('Use a valid https:// video link of at most 500 characters.');return}
+ const original=JSON.parse(JSON.stringify(movementVideos())),next={...original};
+ if(url)next[key]=url;else delete next[key];
+ if(Object.keys(next).length>500){alert('Maximum 500 saved video links.');return}
+ data.movementVideoLinks=next;
+ if(!save()){data.movementVideoLinks=original;return}
+ render();toast(url?'Preferred video saved':'Preferred video cleared');
+}
 function movementFavoriteButton(name){
  const selected=hasFavorite(name);
  return '<button type="button" class="movement-favorite'+(selected?' favorited':'')+
@@ -2406,8 +2480,8 @@ function movements(){
  const q=movementFilter.trim().toLocaleLowerCase(),filtered=all.filter(x=>x.name.toLocaleLowerCase().includes(q)&&(!favoriteOnly||hasFavorite(x.name)));
  const favoriteCount=data.favoriteMovements.length;
  const chosen=filtered.find(x=>x.name+'|'+x.unit===movementSelected)||filtered.find(x=>x.entries.length>0)||filtered[0]||null;
- const names=filtered.map(x=>'<div class="movement-entry"><button class="movement-choice '+(chosen===x?'chosen':'')+'" data-movement-key="'+esc(x.name+'|'+x.unit)+'">'+esc(x.name)+' <span class="note">('+esc(x.unit)+', '+x.entries.length+' logged sessions)</span></button>'+movementFavoriteButton(x.name)+'</div>').join('');
- const detail=chosen?'<section class="card"><div class="movement-detail-header"><h2>'+esc(chosen.name)+'</h2>'+movementFavoriteButton(chosen.name)+'</div><p class="muted">Highest recorded weight per workout ('+esc(chosen.unit)+'). Sets with weight and reps count even if Done was not checked.</p>'+
+ const names=filtered.map(x=>'<div class="movement-entry"><button class="movement-choice '+(chosen===x?'chosen':'')+'" data-movement-key="'+esc(x.name+'|'+x.unit)+'">'+esc(x.name)+' <span class="note">('+esc(x.unit)+', '+x.entries.length+' logged sessions)</span></button>'+movementVideoLink(x.name,true)+movementFavoriteButton(x.name)+'</div>').join('');
+ const detail=chosen?'<section class="card"><div class="movement-detail-header"><h2>'+esc(chosen.name)+'</h2>'+movementFavoriteButton(chosen.name)+'</div>'+movementVideoSettings(chosen.name)+'<p class="muted">Highest recorded weight per workout ('+esc(chosen.unit)+'). Sets with weight and reps count even if Done was not checked.</p>'+
  weightChart(chosen)+
  (chosen.entries.some(x=>x.provisional)?'<p class="note">Some entries are from unfinished workouts and are provisional.</p>':'')+
  '<h3>Recorded sessions</h3><div style="overflow-x:auto"><table class="movement-table"><thead><tr><th>Date</th><th>Top weight</th><th>Logged sets</th><th>Reps</th></tr></thead><tbody>'+
@@ -3595,7 +3669,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-daily-mode
  document.getElementById('selected-workout-picker')?.scrollIntoView({behavior:'smooth',block:'nearest'});break;
 }case'advance':if(data.hasProgram){builderVisible=true;draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};tab='home';render();document.getElementById('program-builder')?.scrollIntoView({block:'start',behavior:'smooth'})}break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'coach-review':coachAction();break;case'runner-strength':runnerStrengthProgram();break;case'feedback-github':submitFeedbackViaGitHub();break;case'coach-local-fallback':coachOfflineFallback();break;case'check-version':checkVersion();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'add-scanned':addScannedFood();break;case'scan-history-toggle':showAllScannedHistory=!showAllScannedHistory;render();break;case'manual-more':manualHistoryExpanded=!manualHistoryExpanded;render();break;case'show-builder':coachPendingPlan=null;builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;coachPendingPlan=null;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':coachPendingPlan=null;tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':coachPendingPlan=null;copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'daily-confirm':if(dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Do not begin this workout without addressing the health or pain concerns reported.');break}dailyCheck.confirmed=true;render();break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':clearWorkoutsAndRestartProgram();break}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&swapPicker){e.preventDefault();closeExercisePicker();return}if(e.target.id==='gym-city'){gymSuggestionKeys(e);return}if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
-document.addEventListener('submit',e=>{if(e.target.id==='running-preferences'){e.preventDefault();saveRunningPreferences();return}if(e.target.id==='run-log-form'){e.preventDefault();addRunningLog();return}if(e.target.id==='feedback-form'){e.preventDefault();submitFeedback();return}if(e.target.id==='coach-form'){e.preventDefault();coachSendRequest(document.getElementById('coach-input')?.value);return}if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;
+document.addEventListener('submit',e=>{if(e.target.id==='movement-video-form'){e.preventDefault();saveMovementVideo();return}if(e.target.id==='running-preferences'){e.preventDefault();saveRunningPreferences();return}if(e.target.id==='run-log-form'){e.preventDefault();addRunningLog();return}if(e.target.id==='feedback-form'){e.preventDefault();submitFeedback();return}if(e.target.id==='coach-form'){e.preventDefault();coachSendRequest(document.getElementById('coach-input')?.value);return}if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;
 if(t.dataset.painArea!==undefined){
  const area=t.value,scope=t.dataset.painArea;
  if(!TRAINER_LIMIT_AREAS.some(([id])=>id===area))return;
