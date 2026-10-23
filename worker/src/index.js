@@ -178,7 +178,7 @@ export default {
    return respond({error:'Verification expired; please retry.'},403)}
   catch{return respond({error:'Verification unavailable'},503)}
   if(/\b(chest pain|fainting|dizziness|injury|injured|pain|surgery|rehab|fracture)\b/i.test(messages.at(-1).content))
-   return respond({reply:'For injuries or symptoms, please use the readiness check and seek qualified advice. I cannot assess medical safety.',plan:null});
+   return respond({reply:'For injuries or symptoms, please use the readiness check and seek qualified advice. I cannot assess medical safety.',plan:null,needsClarification:true});
   const p=input.context&&typeof input.context==='object'?input.context:{};
   const prefs={goal:['muscle','strength','general'].includes(p.goal)?p.goal:'muscle',
    equipment:['all','dumbbells','cables'].includes(p.equipment)?p.equipment:'all',
@@ -206,7 +206,7 @@ export default {
     try{parsed=parseAI(output?.response??output?.choices?.[0]?.message?.content??output)}
     catch{failure='invalid JSON response';continue}
     if(parsed?.mode==='clarify'&&!intent.equipment&&!intent.days&&!intent.minutes)
-     return respond({reply:trim(parsed.reply,420)||'Please clarify what you want to train.',plan:null});
+     return respond({reply:trim(parsed.reply,420)||'Please clarify what you want to train.',plan:null,needsClarification:true});
     const proposed=validatedPlan(parsed);
     failure=planMismatch(proposed,intent);
     if(!failure)return respond({
