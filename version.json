@@ -1,10 +1,10 @@
 {
-  "version": "1.29.0",
-  "updatedAt": "2026-10-17T19:12:00.000Z",
+  "version": "1.29.1",
+  "updatedAt": "2026-10-23T21:00:00.000Z",
   "notes": [
-    "Fixed installation on Android Chrome with a PWA manifest and proper icons.",
-    "Added a service worker for the basic app shell and an install shortcut in Settings.",
-    "Kept locally stored workout and nutrition data unchanged."
+    "Connected the real Cloudflare AI Coach and Turnstile verification.",
+    "Improved handling for requested workout equipment and automatically retried invalid AI plans.",
+    "Fixed stale Cloudflare settings in installed apps without clearing saved workouts."
   ],
   "recentHighlights": [
     "Generate workouts from favorite exercises.",
