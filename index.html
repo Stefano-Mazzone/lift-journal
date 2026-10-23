@@ -3710,8 +3710,8 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.29.0',APP_UPDATED_AT='2026-10-17T19:12:00.000Z';
-const APP_RELEASE_NOTES=['Fixed Android Chrome app installation with a proper manifest, home-screen icons and service worker.','Added an Install Lift Journal option and clearer Android instructions in Settings.','Kept workout history and saved records on this device, with basic offline app-shell support.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
+const APP_VERSION='1.29.1',APP_UPDATED_AT='2026-10-23T21:00:00.000Z';
+const APP_RELEASE_NOTES=['Connected the real Cloudflare AI Workout Coach and Turnstile verification.','Improved AI workout request handling for equipment preferences and invalid plans.','Fixed stale Cloudflare settings in the installed app without clearing workout history.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
 let latestVersion=null,latestStamp=null,latestNotes=null,latestHighlights=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){
  if(typeof v!=='string'||!v.trim())return '';
