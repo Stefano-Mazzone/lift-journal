@@ -1,5 +1,5 @@
 /* Lift Journal offline app shell. User records remain in browser localStorage. */
-const CACHE_NAME='lift-journal-shell-v1.29.0';
+const CACHE_NAME='lift-journal-shell-v1.29.1';
 const SHELL=['./','./index.html','./coach-config.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 const SCOPE=new URL(self.registration.scope);
 const HOME=new URL('./index.html',SCOPE).href;
@@ -23,6 +23,16 @@ self.addEventListener('fetch',event=>{
    if(response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put(HOME,copy)));}
    return response;
   }).catch(async()=>await caches.match(HOME)||Response.error()));
+ }else if(url.href===new URL('./coach-config.js',SCOPE).href){
+  // Always fetch the latest public Cloudflare configuration when online.
+  // Keep the cached copy only for offline use; never clear local workout storage.
+  event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{
+   if(response.ok){
+    const copy=response.clone();
+    event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put(request,copy)));
+   }
+   return response;
+  }).catch(async()=>await caches.match(request)||Response.error()));
  }else if(ASSETS.has(url.href)){
   event.respondWith(caches.match(request).then(cached=>cached||fetch(request)));
  }

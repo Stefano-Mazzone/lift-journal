@@ -24,5 +24,28 @@
         "period": 60
       }
     }
-  ]
+  ],
+  "previews": {
+    "ai": {
+      "binding": "AI"
+    },
+    "ratelimits": [
+      {
+        "name": "COACH_RATE_LIMIT",
+        "namespace_id": "1101",
+        "simple": {
+          "limit": 4,
+          "period": 60
+        }
+      },
+      {
+        "name": "FEEDBACK_RATE_LIMIT",
+        "namespace_id": "1102",
+        "simple": {
+          "limit": 2,
+          "period": 60
+        }
+      }
+    ]
+  }
 }

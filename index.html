@@ -1583,8 +1583,15 @@ async function coachAskAI(message){
    coachRequest={intent:coachAiPlan.mode,goal:coachAiPlan.goal,equipment:coachAiPlan.equipment,
     minutes:coachAiPlan.minutes,days:coachAiPlan.days.length,focus:coachAiPlan.focus,
     favoriteOnly:false,light:false};
-  }else coachRequest=null;
-  coachMessages.push({who:'coach',text:String(payload.reply||'Please try clarifying your request.').slice(0,420)});
+   coachMessages.push({who:'coach',text:String(payload.reply||'Your workout plan is ready for review below.').slice(0,420)});
+  }else{
+   coachRequest=null;
+   // Never tell the user a workout is ready unless a valid plan can actually be displayed.
+   const message=payload.needsClarification?
+    String(payload.reply||'Please clarify your workout request.').slice(0,420):
+    'The AI did not return a usable workout plan. Try asking again, or choose Use On-Device Coach Instead.';
+   coachMessages.push({who:'coach',text:message});
+  }
  }catch(error){
   if(id!==coachRun)return true;
   coachRequest=null;coachAiPlan=null;
@@ -1925,9 +1932,9 @@ const exerciseBank={
 
 const movementCatalogText=String.raw`Squat|legs|squat|Back Squat;Front Squat;Box Squat;Belt Squat Machine;Safety Bar Squat;Pause Squat;Pin Squat;Low Pin Squat;Pierre Roy Squat;Isometric Split Squat;Pendulum Squat;Barbell Front Squat;Barbell High-Bar Squat;Barbell Low-Bar Squat;Barbell Narrow-Stance Squat;Barbell Wide-Stance Squat;Barbell Hack Squat (Heels Elevated);Barbell Zercher Squat;Goblet Squat;Pistol Squat;Bodyweight Squat;DB Heel-Elevated Squat;DB Overhead Squat;Bulgarian Split Squat;Dumbbell Bulgarian Split Squat;Front-Foot-Elevated Split Squat;Barbell Front-Foot-Elevated Split Squat;Smith Machine Squat;Overhead Squat;Swiss Ball Wall Squat;Trap Bar Squat
 Lunge & Step-Up|legs|lunge|Walking Lunge;Reverse Lunge;Dumbbell Reverse Lunge;Dumbbell Front Lunge;Dumbbell Back Lunge;Dumbbell Deficit Reverse Lunge;Dumbbell Step-Up;Barbell Step-Up;Barbell Front Step-Up;Cross-Over Step-Up;Peterson Step-Up;Poliquin Step-Up;Lunge From Deficit Step;Jumping Lunge;Jumping Split Squat;Overhead Walking Lunge;Barbell Zercher Step-Up;Dumbbell Split Squat;Bulgarian DB Split Squat (Front Foot Elevated);Pistol Box Squat
-Deadlift & Hinge|legs|hinge|Conventional Deadlift;Deficit Deadlift;Sumo Deadlift;Sumo Deficit Deadlift;Trap Bar Deadlift;Romanian Deadlift;Dumbbell Romanian Deadlift;Single-Leg Romanian Deadlift;Single-Leg Dumbbell Romanian Deadlift;Stiff-Leg Deadlift;Single-Leg Stiff-Leg Deadlift;Snatch-Grip Deadlift;Rack Pull;Snatch Pull;Clean Pull;Bulgarian Deadlift;Band-Assisted Romanian Deadlift;Barbell Good Morning;Safety Bar Good Morning;Zercher Barbell Good Morning;Barbell Hip Thrust;Dumbbell Hip Thrust;Barbell Glute Bridge;Elevated Frog Glute Bridge;Single-Leg Glute Bridge;One-Leg Hip Thrust;Back Extension;Reverse Hyperextension;Incline Hyperextension 45°
+Deadlift & Hinge|legs|hinge|Conventional Deadlift;Deficit Deadlift;Sumo Deadlift;Sumo Deficit Deadlift;Trap Bar Deadlift;Romanian Deadlift;Dumbbell Romanian Deadlift;Single-Leg Romanian Deadlift;Single-Leg Dumbbell Romanian Deadlift;Stiff-Leg Deadlift;Single-Leg Stiff-Leg Deadlift;Snatch-Grip Deadlift;Rack Pull;Snatch Pull;Clean Pull;Bulgarian Deadlift;Band-Assisted Romanian Deadlift;Barbell Good Morning;Safety Bar Good Morning;Zercher Barbell Good Morning;Barbell Hip Thrust;Dumbbell Hip Thrust;Barbell Glute Bridge;Glute Bridge;Elevated Frog Glute Bridge;Single-Leg Glute Bridge;One-Leg Hip Thrust;Back Extension;Reverse Hyperextension;Incline Hyperextension 45°
 Leg Curl|legs|legcurl|Seated Leg Curl;Lying Leg Curl;Lying Leg Curl (Neutral Feet);Lying Leg Curl (Toes In);Lying Leg Curl (Plantar-Flexed);Seated Leg Curl (Toes In);Standing Single-Leg Curl;Nordic Curl;Eccentric Nordic Curl;Swiss Ball Leg Curl;Glute-Ham Raise;Kneeling Leg Curl;Leg Curl (Feet Neutral)
-Leg Extension & Press|legs|legpress|Leg Extension;Leg Press;Leg Press (Mid-Plate Hip Stance);Single-Leg Press;Hack Squat Machine
+Leg Extension & Press|legs|legpress|Leg Extension;Leg Extension Machine;Leg Press;Leg Press (Mid-Plate Hip Stance);Single-Leg Press;Hack Squat Machine
 Calf & Shin|legs|calf|Standing Calf Raise;Seated Calf Raise;Donkey Calf Raise;Barbell Standing Calf Raise;Dumbbell Standing Calf Raise;Leg Press Calf Raise;Single-Leg Standing Calf Raise;Tibialis Raise
 Chest Press|push|chestpress|Flat Barbell Bench Press;Flat Dumbbell Chest Press;Dumbbell Bench Press;Incline Barbell Bench Press;Incline Dumbbell Bench Press;Decline Bench Press;Decline Dumbbell Bench Press;Barbell Floor Press;Dumbbell Floor Press;Narrow-Grip Bench Press;Medium-Grip Bench Press;Close-Grip Bench Press;Close-Grip Dumbbell Press;Isometric Bench Press;Paused Bench Press;30° Incline Barbell Bench Press;Chest Press Machine;One-Arm Dumbbell Chest Press;Seated Floor Dumbbell Press;Push-Up;Regular-Stance Push-Up;Chest Dip;Incline Push-Up;Weighted Push-Up
 Chest Fly|push|chestfly|Cable Fly;Cable Crossover;Dumbbell Fly;Incline Dumbbell Fly;Decline Dumbbell Fly;One-Arm Cable Fly;One-Arm Crossover Fly;Pec Deck;Reverse-Grip Cable Fly;Low-Pulley Cable Fly;Swiss Ball Cable Fly;Low-Decline Dumbbell Fly;Dumbbell Pullover;Flat Dumbbell Fly
@@ -3710,8 +3717,8 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.29.0',APP_UPDATED_AT='2026-10-17T19:12:00.000Z';
-const APP_RELEASE_NOTES=['Fixed Android Chrome app installation with a proper manifest, home-screen icons and service worker.','Added an Install Lift Journal option and clearer Android instructions in Settings.','Kept workout history and saved records on this device, with basic offline app-shell support.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
+const APP_VERSION='1.29.1',APP_UPDATED_AT='2026-10-23T21:00:00.000Z';
+const APP_RELEASE_NOTES=['Connected the real Cloudflare AI Workout Coach and Turnstile verification.','Improved AI workout request handling for equipment preferences and invalid plans.','Fixed stale Cloudflare settings in the installed app without clearing workout history.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
 let latestVersion=null,latestStamp=null,latestNotes=null,latestHighlights=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){
  if(typeof v!=='string'||!v.trim())return '';
