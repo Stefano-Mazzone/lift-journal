@@ -110,6 +110,33 @@ async function submitPublicFeedback(input,request,env){
   return respond({error:'Feedback service unavailable. Please use the GitHub option.'},503);
  }
 }
+function resolveWorkoutIntent(message,prefs){
+ const text=String(message||'');
+ const asksDumbbells=/\b(?:dumbbells?|db only)\b/i.test(text);
+ const asksCables=/\bcables?\b/i.test(text);
+ const equipment=asksDumbbells&&!asksCables?'dumbbells':asksCables&&!asksDumbbells?'cables':null;
+ const dayMatch=text.match(/\b([1-7])[\s-]*days?\b/i);
+ const days=dayMatch?Number(dayMatch[1]):null;
+ const minuteMatch=text.match(/\b(20|30|45|60)[\s-]*min(?:ute)?s?\b/i);
+ const minutes=minuteMatch?Number(minuteMatch[1]):null;
+ const goal=/\b(?:muscle|hypertrophy|mass)\b/i.test(text)?'muscle':
+  /\bstrength\b/i.test(text)?'strength':null;
+ const focus=/\bupper[\s-]*body\b/i.test(text)?'upper':
+  /\blower[\s-]*body\b/i.test(text)?'lower':
+  /\bfull[\s-]*body\b/i.test(text)?'full':null;
+ return {equipment,days,minutes,goal,focus,prefs:{...prefs,
+  ...(equipment?{equipment}:{}),...(days?{days}:{}),...(minutes?{minutes}:{}),
+  ...(goal?{goal}:{}),...(focus?{focus}:{})}};
+}
+function planMismatch(plan,intent){
+ if(!plan)return 'invalid workout structure or incompatible exercises';
+ if(intent.days&&plan.days.length!==intent.days)return 'requested number of days';
+ if(intent.equipment&&plan.equipment!==intent.equipment)return 'requested equipment';
+ if(intent.minutes&&plan.minutes!==intent.minutes)return 'requested session length';
+ if(intent.goal&&plan.goal!==intent.goal)return 'requested training goal';
+ if(intent.focus&&plan.focus!==intent.focus)return 'requested workout focus';
+ return null;
+}
 const SYSTEM=[
  'You are Lift Journal Workout Coach. Produce only one JSON object, no markdown.',
  'Required JSON keys: reply, mode, title, goal, equipment, minutes, focus, days.',
@@ -121,7 +148,8 @@ const SYSTEM=[
  'Exercise names must be EXACTLY from: '+EXERCISES.join('; '),
  'For dumbbells equipment, exercises must be among: '+[...DUMBBELL_NAMES].join('; '),
  'For cables equipment, exercises must be among: '+[...CABLE_NAMES].join('; '),
- 'Obey the user requested equipment and focus. Refine the previous plan when asked.',
+ 'The latest user message overrides stored equipment, goal, focus, day count and session duration preferences.',
+ 'Match all explicitly requested constraints exactly. Refine the previous plan when asked.',
  'Avoid medical diagnosis, rehabilitation and promises of safety. For symptoms or unclear requests, mode=clarify.',
  'Reply briefly and politely; no more than 240 characters in reply.'
 ].join('\n');
@@ -157,23 +185,34 @@ export default {
    minutes:[20,30,45,60].includes(p.minutes)?p.minutes:45,
    days:Number.isInteger(p.days)&&p.days>=1&&p.days<=7?p.days:3};
   const old=validatedPlan(input.previousPlan);
+  const intent=resolveWorkoutIntent(messages.at(-1).content,{
+   ...prefs,equipment:old?.equipment||prefs.equipment});
   const history=messages.map(m=>({role:m.role,content:trim(m.content,500)}));
-  history.push({role:'user',content:'Non-medical preferences: '+JSON.stringify(prefs)+'\n'+
+  history.push({role:'user',content:'Resolved non-medical preferences (latest user request takes priority): '+
+   JSON.stringify(intent.prefs)+'\n'+
    (old?'Previous plan to refine: '+JSON.stringify(old):'No previous plan.')+'\nReturn valid JSON only.'});
   try{
-   const output=await env.AI.run(MODEL,{messages:[{role:'system',content:SYSTEM},...history],
-    max_tokens:1850,temperature:0.3,chat_template_kwargs:{enable_thinking:false}});
-   const parsed=parseAI(output?.response??output?.choices?.[0]?.message?.content??output);
-   const proposed=validatedPlan(parsed);
-   const requestedDays=messages.at(-1).content.match(/\b([1-7])[\s-]*day(?:s)?\b/i);
-   const asksDumbbells=/\b(dumbbell|dumbbells|db only)\b/i.test(messages.at(-1).content);
-   const asksCables=/\b(cable|cables)\b/i.test(messages.at(-1).content);
-   if(proposed&&requestedDays&&proposed.mode==='program'&&proposed.days.length!==Number(requestedDays[1]))
-    return respond({reply:'The AI did not match the requested number of training days. Please ask it to try again.',plan:null});
-   if(proposed&&((asksDumbbells&&!asksCables&&proposed.equipment!=='dumbbells')||
-     (asksCables&&!asksDumbbells&&proposed.equipment!=='cables')))
-    return respond({reply:'The AI did not match the requested equipment. Please ask it to retry.',plan:null});
-   return respond({reply:trim(parsed.reply,420)||'Here is a workout proposal for your review.',plan:proposed});
+   let failure='invalid workout structure';
+   for(let attempt=0;attempt<2;attempt++){
+    const correction=attempt?[{role:'user',content:
+     'The previous proposal failed validation: '+failure+
+     '. Regenerate a complete valid JSON workout. Required preferences: '+
+     JSON.stringify(intent.prefs)+'. Only use allowed exercises for the requested equipment. '+
+     'Match the requested days, minutes, goal and focus. Do not include explanations outside JSON.'}]:[];
+    const output=await env.AI.run(MODEL,{
+     messages:[{role:'system',content:SYSTEM},...history,...correction],
+     max_tokens:1850,temperature:0.3,chat_template_kwargs:{enable_thinking:false}});
+    let parsed;
+    try{parsed=parseAI(output?.response??output?.choices?.[0]?.message?.content??output)}
+    catch{failure='invalid JSON response';continue}
+    if(parsed?.mode==='clarify'&&!intent.equipment&&!intent.days&&!intent.minutes)
+     return respond({reply:trim(parsed.reply,420)||'Please clarify what you want to train.',plan:null});
+    const proposed=validatedPlan(parsed);
+    failure=planMismatch(proposed,intent);
+    if(!failure)return respond({
+     reply:trim(parsed.reply,420)||'Here is a workout proposal for your review.',plan:proposed});
+   }
+   return respond({reply:'The AI could not generate a valid workout matching your request, even after a retry. Try rephrasing or use the on-device coach.',plan:null});
   }catch{
    return respond({error:'AI is temporarily unavailable or the free daily allowance is exhausted.'},503);
   }
