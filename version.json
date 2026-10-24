@@ -1,10 +1,10 @@
 {
-  "version": "1.29.1",
-  "updatedAt": "2026-10-23T21:00:00.000Z",
+  "version": "1.29.2",
+  "updatedAt": "2026-10-24T14:49:00.000Z",
   "notes": [
-    "Connected the real Cloudflare AI Coach and Turnstile verification.",
-    "Improved handling for requested workout equipment and automatically retried invalid AI plans.",
-    "Fixed stale Cloudflare settings in installed apps without clearing saved workouts."
+    "Automatically retry Cloudflare verification once when it cannot load, with a manual Retry verification button on Feedback and Coach.",
+    "Improve installed-app verification errors without clearing draft feedback or stored workouts.",
+    "Keep GitHub feedback and the on-device workout coach available if verification stays unavailable."
   ],
   "recentHighlights": [
     "Generate workouts from favorite exercises.",
