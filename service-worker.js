@@ -1,5 +1,5 @@
 /* Lift Journal offline app shell. User records remain in browser localStorage. */
-const CACHE_NAME='lift-journal-shell-v1.29.1';
+const CACHE_NAME='lift-journal-shell-v1.29.2';
 const SHELL=['./','./index.html','./coach-config.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 const SCOPE=new URL(self.registration.scope);
 const HOME=new URL('./index.html',SCOPE).href;
