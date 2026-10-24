@@ -99,7 +99,7 @@ async function submitPublicFeedback(input,request,env){
     'Authorization':'Bearer '+env.GITHUB_FEEDBACK_TOKEN,
     'X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json',
     'User-Agent':'Lift-Journal-Feedback'},
-   body:JSON.stringify({title:'['+kind+'] '+title,body})
+   body:JSON.stringify({title:'['+kind+'] '+title,body,labels:['Under Review']})
   });
   if(!response.ok)return respond({error:'Feedback could not be delivered. Please use the GitHub option.'},503);
   const issue=await response.json();
