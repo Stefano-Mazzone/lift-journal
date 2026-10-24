@@ -31,6 +31,16 @@ The **Feedback** tab works immediately with a GitHub-sign-in fallback. To let us
 3. Deploy the latest \`worker/wrangler.json\` configuration, which includes the separate \`FEEDBACK_RATE_LIMIT\` binding (2 requests per 60 seconds per edge location/IP). The same Turnstile settings from the AI setup protect feedback submissions.
 4. Once \`coach-config.js\` contains your public Worker URL and public Turnstile site key, users can submit feedback inside Lift Journal → **Feedback**, without a GitHub account.
 
+### Protect the Feedback Hub during redeployments
+
+The repository contains both a root `wrangler.json` and `worker/wrangler.json` for the two Cloudflare build-directory layouts. Both files specify the same safeguards:
+
+- `secrets.required` lists `TURNSTILE_SECRET` and `GITHUB_FEEDBACK_TOKEN`. Wrangler validates the configured **secret names** and blocks deployment if either is absent. It does not store either secret value in GitHub.
+- `keep_vars: true` preserves dashboard-managed **variables** when deploying. Cloudflare says Wrangler normally preserves encrypted secrets as well; this setting alone is **not a guarantee** against an unexpectedly missing secret.
+- In Cloudflare → Worker → Settings → Builds → Build watch paths, restrict **Include paths** to `worker/*` and `wrangler.json` to avoid redeploying the Worker when only the GitHub Pages app changes. This is a dashboard setting, not part of the code.
+- Before approving and merging a Worker-config change, confirm **Production** has both secrets; otherwise the required-secret validation should reject that deployment. If the GitHub token is missing, restore it in Cloudflare as an encrypted secret, then verify an account-free Feedback submission. Do not put a token value in source code, config, documentation or a chat.
+- If a secret disappears even after this protection is enabled, inspect the specific deployment's build logs and settings and contact Cloudflare support with the deployment ID. The precise cause of the earlier deletion has not been established.
+
 All submissions become **public GitHub issues**, not private messages. Warn users not to submit personally identifying, medical, or sensitive information. The Worker is the only code with permission to create GitHub issues. Users cannot update your app or code from the feedback form.
 
 You can review new feedback at [Lift Journal Issues](https://github.com/Stefano-Mazzone/lift-journal/issues), prioritize requests and decide whether to implement changes. In ChatGPT, ask **"Check Lift Journal feedback"** to retrieve issues from GitHub and draft a shortlist of improvements. Feedback does **not** appear automatically as incoming chat messages here, and no updates are pushed without your approval.

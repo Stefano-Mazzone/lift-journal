@@ -4,6 +4,13 @@
   "main": "src/index.js",
   "compatibility_date": "2026-10-16",
   "workers_dev": true,
+  "keep_vars": true,
+  "secrets": {
+    "required": [
+      "TURNSTILE_SECRET",
+      "GITHUB_FEEDBACK_TOKEN"
+    ]
+  },
   "ai": {
     "binding": "AI"
   },
