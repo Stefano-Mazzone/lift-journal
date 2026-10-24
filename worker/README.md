@@ -55,9 +55,9 @@ After deployment, configure the same public Worker endpoint and public Turnstile
 
 ## Feedback review process
 
-- **New**: Submitted feedback arrives as a GitHub issue, typically titled \`[Bug report] …\`, \`[Feature request] …\`, \`[Workout feedback] …\` or \`[Other feedback] …\`.
+- **New**: Submitted feedback arrives as a GitHub issue, typically titled \`[Bug report] …\`, \`[Feature request] …\`, \`[Workout feedback] …\` or \`[Other feedback] …\`. Feedback submitted without an account through the app automatically receives the existing **Under Review** label. Requests made directly on GitHub may need the label assigned manually.
 - **Triage**: Check for duplicates, reproduce bugs if possible, and ask follow-up questions publicly without requesting sensitive personal details. Add priority labels if desired.
-- **Approval**: The repository owner decides what should change. A suggestion is not a release authorization.
+- **Approval**: The repository owner changes the request's decision label from **Under Review** to **Approved**, **Declined** or **Implemented** as appropriate (one decision label at a time). These labels record decisions only; a suggestion is not a release authorization.
 - **Release**: Only after approval, change the app in GitHub, review and test the code, update the version, and publish it via GitHub Pages.
 - **Close**: Link the implementing commit or version from the issue, or explain why a request is deferred or declined.
 
