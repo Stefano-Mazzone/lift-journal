@@ -1293,7 +1293,7 @@ function feedbackPage(){
  '<label class="input-label" for="feedback-title">Short title</label><input id="feedback-title" maxlength="95" minlength="5" required placeholder="e.g. Let me edit my run distance">'+
  '<label class="input-label" for="feedback-details">Details</label><textarea id="feedback-details" minlength="10" maxlength="2000" rows="5" required placeholder="What happened, or what would you like to change?"></textarea>'+
  '<div class="hide" aria-hidden="true"><label>Website<input id="feedback-website" tabindex="-1" autocomplete="off"></label></div>'+
- (active?'<div id="feedback-challenge" class="feedback-challenge"></div><p class="note" id="feedback-verify-status" role="status">Complete the verification to submit without a GitHub account.</p>':'')+
+ (active?'<div id="feedback-challenge" class="feedback-challenge"></div><p class="note" id="feedback-verify-status" role="status">Loading Cloudflare verification…</p><button type="button" class="btn secondary tiny hide" id="feedback-verify-retry" data-action="retry-feedback-verification" style="margin:8px 0">Retry verification</button>':'')+
  '<button type="submit" id="feedback-send" class="btn">'+(active?'Submit feedback without an account':'Continue on GitHub to submit')+'</button></form>'+
  '<p class="note" id="feedback-status" role="status" aria-live="polite">'+
  (active?'Your feedback goes through Cloudflare into our public GitHub review queue. No GitHub sign-in is required.':'GitHub sign-in is required until the feedback service is connected. You will review your issue on GitHub before posting.')+'</p>'+
@@ -1320,22 +1320,7 @@ function submitFeedbackViaGitHub(){
  if(!form)return;
  location.assign(githubFeedbackLink(form));
 }
-async function mountFeedbackVerification(){
- if(!coachAISettings()||tab!=='feedback'||!document.getElementById('feedback-challenge'))return;
- try{
-  await loadCoachVerification();
-  if(tab!=='feedback'||!document.getElementById('feedback-challenge')||coachTurnstileId!==null)return;
-  coachTurnstileId=window.turnstile.render('#feedback-challenge',{
-   sitekey:coachAISettings().turnstileSiteKey,theme:'auto',size:'flexible',
-   callback:()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verified — ready to send feedback.'},
-   'expired-callback':()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verification expired. Please verify again.'},
-   'error-callback':()=>{const el=document.getElementById('feedback-verify-status');if(el)el.textContent='Verification failed. Try again or submit through GitHub.'}
-  });
- }catch{
-  const el=document.getElementById('feedback-verify-status');
-  if(el)el.textContent='Verification unavailable. You can still use GitHub instead.';
- }
-}
+function mountFeedbackVerification(){return mountSecurityVerification('feedback')}
 async function submitFeedback(){
  const form=readFeedbackFields();
  if(!form||feedbackSending)return;
@@ -1432,7 +1417,7 @@ function sessionView(){
 }
 // Request-based workout planning runs locally. This is NOT a hosted language model.
 let coachMessages=[{who:'coach',text:'Tell me what you want to train. For example: "Build a 3-day muscle program with dumbbells" or "Give me a 30-minute upper-body workout today". I can prepare a plan for review.'}];
-let coachRequest=null,coachBusy=false,coachAiPlan=null,coachPreviousAiPlan=null,coachPendingPlan=null,coachSessionSuggestion=null,coachTurnstileId=null,coachTurnstileLoader=null,coachRun=0,coachLastInput='';
+let coachRequest=null,coachBusy=false,coachAiPlan=null,coachPreviousAiPlan=null,coachPendingPlan=null,coachSessionSuggestion=null,coachTurnstileId=null,coachTurnstileLoader=null,coachVerificationGeneration=0,coachRun=0,coachLastInput='';
 const COACH_MAX_MESSAGES=16;
 
 function coachAISettings(){
@@ -1447,48 +1432,89 @@ function coachAISettings(){
  }catch{return null}
 }
 function removeCoachVerification(){
+ coachVerificationGeneration++;
  if(coachTurnstileId!==null&&window.turnstile){
   try{window.turnstile.remove(coachTurnstileId)}catch(e){}
  }
  coachTurnstileId=null;
 }
+function verificationStatus(kind,message,canRetry=false){
+ const status=document.getElementById(kind+'-verify-status');
+ if(status)status.textContent=message;
+ const retry=document.getElementById(kind+'-verify-retry');
+ if(retry)retry.classList.toggle('hide',!canRetry);
+}
+function retryVerification(kind){
+ if(tab!==kind)return;
+ const element=document.getElementById(kind+'-challenge');
+ if(!element)return;
+ removeCoachVerification();
+ element.replaceChildren();
+ verificationStatus(kind,'Retrying Cloudflare verification…');
+ return mountSecurityVerification(kind);
+}
 function loadCoachVerification(){
  if(window.turnstile?.render)return Promise.resolve();
  if(coachTurnstileLoader)return coachTurnstileLoader;
- coachTurnstileLoader=new Promise((resolve,reject)=>{
+ const loadOnce=()=>new Promise((resolve,reject)=>{
   const script=document.createElement('script');
   script.async=true;script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-  let done=false;
-  const timer=setTimeout(()=>finish(Error('Verification did not load')),12000);
+  let finished=false;
   const finish=error=>{
-   if(done)return;done=true;clearTimeout(timer);
+   if(finished)return;
+   finished=true;clearTimeout(timer);
+   script.onload=null;script.onerror=null;
    if(error){script.remove();reject(error)}else resolve();
   };
-  script.onload=()=>window.turnstile?.render?finish():finish(Error('Verification unavailable'));
-  script.onerror=()=>finish(Error('Verification script unavailable'));
+  const timer=setTimeout(()=>finish(Error('Verification script timed out')),12000);
+  script.onload=()=>window.turnstile?.render?finish():finish(Error('Verification API unavailable'));
+  script.onerror=()=>finish(Error('Verification script could not load'));
   document.head.appendChild(script);
- }).catch(e=>{coachTurnstileLoader=null;throw e});
+ });
+ coachTurnstileLoader=(async()=>{
+  try{await loadOnce()}catch(firstError){
+   if(window.turnstile?.render)return;
+   await new Promise(resolve=>setTimeout(resolve,700));
+   if(window.turnstile?.render)return;
+   await loadOnce();
+  }
+ })().finally(()=>{coachTurnstileLoader=null});
  return coachTurnstileLoader;
 }
-async function mountCoachVerification(){
- const settings=coachAISettings();
- if(!settings||tab!=='coach')return;
- const element=document.getElementById('coach-challenge');
- if(!element)return;
+async function mountSecurityVerification(kind){
+ const settings=coachAISettings(),element=document.getElementById(kind+'-challenge');
+ if(!settings||tab!==kind||!element||coachTurnstileId!==null)return;
+ const generation=coachVerificationGeneration;
+ verificationStatus(kind,'Loading Cloudflare verification…');
  try{
   await loadCoachVerification();
-  if(tab!=='coach'||!document.getElementById('coach-challenge')||coachTurnstileId!==null)return;
-  coachTurnstileId=window.turnstile.render('#coach-challenge',{
+  if(generation!==coachVerificationGeneration||tab!==kind||
+   document.getElementById(kind+'-challenge')!==element||coachTurnstileId!==null)return;
+  coachTurnstileId=window.turnstile.render('#'+kind+'-challenge',{
    sitekey:settings.turnstileSiteKey,theme:'auto',size:'flexible',
-   callback:()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification complete. Ready to ask the AI.'},
-   'expired-callback':()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification expired. Please verify again.'},
-   'error-callback':()=>{const status=document.getElementById('coach-verify-status');if(status)status.textContent='Verification failed. Refresh or use on-device planning.'}
+   callback:()=>{
+    if(generation===coachVerificationGeneration)
+     verificationStatus(kind,kind==='feedback'?'Verified — ready to send feedback.':'Verification complete. Ready to ask the AI.');
+   },
+   'expired-callback':()=>{
+    if(generation===coachVerificationGeneration)
+     verificationStatus(kind,'Verification expired. Please complete the challenge again or tap Retry verification.',true);
+   },
+   'error-callback':()=>{
+    if(generation===coachVerificationGeneration)
+     verificationStatus(kind,'Cloudflare verification failed. Check your connection and tap Retry verification.',true);
+   }
   });
- }catch{
-  const status=document.getElementById('coach-verify-status');
-  if(status)status.textContent='Could not load verification. On-device planning is still available.';
+  if(coachTurnstileId===null||coachTurnstileId===undefined)throw Error('Verification widget unavailable');
+ }catch(error){
+  if(generation!==coachVerificationGeneration||tab!==kind||
+   document.getElementById(kind+'-challenge')!==element)return;
+  verificationStatus(kind,kind==='feedback'?
+   'Cloudflare verification could not load. Check your connection and tap Retry verification. Your feedback stays in this form. If this keeps happening in the installed app, try Safari or GitHub instead.':
+   'Cloudflare verification could not load. Check your connection and tap Retry verification, or use on-device planning.',true);
  }
 }
+function mountCoachVerification(){return mountSecurityVerification('coach')}
 const COACH_DUMBBELL_EXERCISES=new Set([
 'Goblet Squat','Bodyweight Squat','Dumbbell Split Squat','Reverse Lunge',
 'Dumbbell Romanian Deadlift','Glute Bridge','Dumbbell Bench Press','Flat Dumbbell Bench Press',
@@ -1756,7 +1782,7 @@ function coachPage(){
  '</p>'+
  '<div class="coach-chat" aria-label="Workout planning conversation" role="log" aria-live="polite">'+messages+'</div>'+
  previewMarkup+
- (coachAISettings()?'<div class="coach-verify"><div id="coach-challenge"></div><p class="note" id="coach-verify-status" role="status">Complete the security verification to ask the AI.</p></div>':'')+
+ (coachAISettings()?'<div class="coach-verify"><div id="coach-challenge"></div><p class="note" id="coach-verify-status" role="status">Loading Cloudflare verification…</p><button type="button" class="btn secondary tiny hide" id="coach-verify-retry" data-action="retry-coach-verification" style="margin:8px 0">Retry verification</button></div>':'')+
  '<form id="coach-form"><label class="input-label" for="coach-input">What would you like to train?</label>'+
  '<textarea id="coach-input" maxlength="500" rows="3" required placeholder="e.g. Plan a 3-day strength program, 45 minutes per day, with dumbbells"></textarea>'+
  '<button class="btn coach-send" type="submit"'+(coachBusy?' disabled aria-busy="true"':'')+'>'+
@@ -3717,8 +3743,8 @@ async function gymCity(q){
   render();
  }finally{clearTimeout(timeout)}
 }
-const APP_VERSION='1.29.1',APP_UPDATED_AT='2026-10-23T21:00:00.000Z';
-const APP_RELEASE_NOTES=['Connected the real Cloudflare AI Workout Coach and Turnstile verification.','Improved AI workout request handling for equipment preferences and invalid plans.','Fixed stale Cloudflare settings in the installed app without clearing workout history.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
+const APP_VERSION='1.29.2',APP_UPDATED_AT='2026-10-24T14:49:00.000Z';
+const APP_RELEASE_NOTES=['Added an automatic retry and a Retry verification button when Cloudflare verification fails to load.','Improved verification messages on installed mobile apps while preserving feedback drafts.','Kept the GitHub feedback option and on-device Coach available if verification remains unavailable.'],APP_RECENT_HIGHLIGHTS=['Start a workout from favorite movements.','Watch exercise demos inside Lift Journal.','Plan and log running workouts.'];
 let latestVersion=null,latestStamp=null,latestNotes=null,latestHighlights=null,versionStatus='Not checked',versionCheckState='idle';
 function appLocalStamp(v){
  if(typeof v!=='string'||!v.trim())return '';
@@ -3917,7 +3943,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-video-name
  const next=monthSchedule().find(x=>x.date===today);selectedDate=today;selectedSlot=next?.slot||null;day=next?.day??0;
  resetDailyChoice();editing=null;editingPast=false;tab='train';render();
  document.getElementById('selected-workout-picker')?.scrollIntoView({behavior:'smooth',block:'nearest'});break;
-}case'advance':if(data.hasProgram){builderVisible=true;draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};tab='home';render();document.getElementById('program-builder')?.scrollIntoView({block:'start',behavior:'smooth'})}break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'coach-review':coachAction();break;case'runner-strength':runnerStrengthProgram();break;case'feedback-github':submitFeedbackViaGitHub();break;case'coach-local-fallback':coachOfflineFallback();break;case'check-version':checkVersion();break;case'install-app':installLiftJournal();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'add-scanned':addScannedFood();break;case'scan-history-toggle':showAllScannedHistory=!showAllScannedHistory;render();break;case'manual-more':manualHistoryExpanded=!manualHistoryExpanded;render();break;case'show-builder':coachPendingPlan=null;builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;coachPendingPlan=null;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':coachPendingPlan=null;tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':coachPendingPlan=null;copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'daily-confirm':if(dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Do not begin this workout without addressing the health or pain concerns reported.');break}dailyCheck.confirmed=true;render();break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':clearWorkoutsAndRestartProgram();break}});
+}case'advance':if(data.hasProgram){builderVisible=true;draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),medical:'unanswered'};tab='home';render();document.getElementById('program-builder')?.scrollIntoView({block:'start',behavior:'smooth'})}break;case'barcode-lookup':{const c=document.getElementById('barcode-input')?.value;stopBarcodeCamera();lookupBarcode(c);break}case'coach-review':coachAction();break;case'runner-strength':runnerStrengthProgram();break;case'feedback-github':submitFeedbackViaGitHub();break;case'retry-feedback-verification':retryVerification('feedback');break;case'retry-coach-verification':retryVerification('coach');break;case'coach-local-fallback':coachOfflineFallback();break;case'check-version':checkVersion();break;case'install-app':installLiftJournal();break;case'reload-app':location.reload();break;case'gym-near':gymNear();break;case'gym-list':gymLoadDirectory();break;case'add-scanned':addScannedFood();break;case'scan-history-toggle':showAllScannedHistory=!showAllScannedHistory;render();break;case'manual-more':manualHistoryExpanded=!manualHistoryExpanded;render();break;case'show-builder':coachPendingPlan=null;builderVisible=!builderVisible;if(builderVisible){draftPlan=null;setupStep=0;setupPrefs={...trainerDefaultPrefs(),...(data.trainerProfile||{}),days:data.weekdays.length,medical:'unanswered'}}render();if(builderVisible)document.getElementById('program-builder')?.scrollIntoView({behavior:'smooth',block:'start'});break;case'hide-builder':if(!data.hasProgram)return;coachPendingPlan=null;builderVisible=false;render();break;case'setup-next':setupNext();break;case'setup-back':rememberSetupAnswer();setupStep=Math.max(0,setupStep-1);render();break;case'go-setup':coachPendingPlan=null;tab='home';builderVisible=true;render();break;case'generate':rememberSetupAnswer();createProgramDraft();break;case'copy-current':coachPendingPlan=null;copyCurrentToDraft();break;case'draft-add-exercise':{const list=draftPlan?.days?.[draftExpanded]?.[1];if(!list)return;if(list.length>=12){toast('Maximum 12 exercises per workout');return}list.push(X('New Exercise',3,'8–12'));render();break}case'apply-draft':applyDraftProgram();break;case'discard-draft':draftPlan=null;draftExpanded=0;render();break;case'prev':selectedSlot=null;selectedDate=null;shiftMonth(-1);break;case'next':selectedSlot=null;selectedDate=null;shiftMonth(1);break;case'daily-confirm':if(dailyCheck.medical!=='no'||hasHighPain(dailyProfile())){alert('Do not begin this workout without addressing the health or pain concerns reported.');break}dailyCheck.confirmed=true;render();break;case'start':if(!data.hasProgram){tab='home';render();break}if(findActive()&&!confirm('You have an unfinished workout. Start another one?'))return;newSession();scrollTo(0,0);break;case'resume':{const active=findActive();if(active)openWorkout(active.key);break}case'back':editing=null;editingPast=false;tab='train';render();break;case'finish':finish();scrollTo(0,0);break;case'edit-completed':toggleCompletedEdit();break;case'fill-missing-reps':fillMissingSessionReps();break;case'reopen-workout':reopenWorkout();break;case'history':editing=null;editingPast=false;tab='history';render();break;case'save-history-date':changeHistoryWorkoutDate();break;case'save-workout-date':saveRecordedWorkoutDate();break;case'cancel-workout-date':workoutDateEditId=null;render();break;case'export':{const blob=new Blob([JSON.stringify({format:'lift-journal-v1',exported:new Date().toISOString(),data},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lift-journal-backup-'+isoDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break}case'clear':clearWorkoutsAndRestartProgram();break}});
 document.addEventListener('keydown',e=>{if(movementVideoDialogKeydown(e))return;if(e.key==='Escape'&&swapPicker){e.preventDefault();closeExercisePicker();return}if(e.target.id==='gym-city'){gymSuggestionKeys(e);return}if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-calendar-date]')){e.preventDefault();e.target.click()}});
 document.addEventListener('click',e=>{if(e.target===movementVideoOverlay)closeMovementVideo()});
  document.addEventListener('submit',e=>{if(e.target.id==='movement-video-form'){e.preventDefault();saveMovementVideo();return}if(e.target.id==='running-preferences'){e.preventDefault();saveRunningPreferences();return}if(e.target.id==='run-log-form'){e.preventDefault();addRunningLog();return}if(e.target.id==='feedback-form'){e.preventDefault();submitFeedback();return}if(e.target.id==='coach-form'){e.preventDefault();coachSendRequest(document.getElementById('coach-input')?.value);return}if(e.target.id==='gym-city-form'){e.preventDefault();gymCity(document.getElementById('gym-city').value);return}if(e.target.id==='food-search-form'){e.preventDefault();findFoods(document.getElementById('food-query').value);return}if(e.target.id==='calorie-form'){e.preventDefault();addCalories()}});document.addEventListener('change',e=>{const t=e.target;
