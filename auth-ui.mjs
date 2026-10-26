@@ -18,11 +18,18 @@ const saveProfileButton = $("save-profile");
 const accountEmail = $("account-email");
 const accountName = $("account-name");
 const signupInfo = $("signup-info");
+const cloudSection = $("cloud-section");
+const cloudStatus = $("cloud-status");
+const cloudList = $("cloud-workout-list");
+const saveWorkoutButton = $("save-test-workout");
+const refreshWorkoutsButton = $("refresh-test-workouts");
+
 
 let client = null;
 let currentUser = null;
 let busy = false;
 let initialized = false;
+let workoutRequestSequence = 0;
 
 function announce(message, kind = "info") {
   status.textContent = message;
@@ -55,6 +62,11 @@ function showGuest() {
   currentUser = null;
   tabList.hidden = false;
   signedIn.hidden = true;
+  // Clear the previous user's visible cloud data immediately on sign-out.
+  workoutRequestSequence++;
+  cloudList.replaceChildren();
+  cloudStatus.textContent = "Sign in to view your cloud workouts.";
+  cloudStatus.dataset.kind = "info";
   $("panel-login").hidden = $("tab-login").getAttribute("aria-selected") !== "true";
   $("panel-signup").hidden = $("tab-signup").getAttribute("aria-selected") !== "true";
   loginFieldset.disabled = !initialized || busy || !settings?.testLoginEnabled;
@@ -115,6 +127,7 @@ async function refreshSession() {
     return;
   }
   await showAccount(user);
+  if (currentUser?.id === user.id) await loadCloudWorkouts(user.id);
 }
 
 $("login-form").addEventListener("submit", async event => {
@@ -201,6 +214,104 @@ $("sign-out").addEventListener("click", async () => {
   } finally {
     busy = false;
   }
+});
+
+// Cloud workout preview: deliberately NEVER reads localStorage workout key "lift-journal-v1".
+// This creates only opt-in TEST entries and never deletes or overwrites real workouts.
+function announceCloud(message, kind = "info") {
+  cloudStatus.textContent = message;
+  cloudStatus.dataset.kind = kind;
+}
+
+function renderCloudWorkoutList(rows) {
+  cloudList.replaceChildren();
+  if (!rows.length) {
+    const item = document.createElement("li");
+    item.textContent = "No cloud workouts visible for this account.";
+    cloudList.append(item);
+    return;
+  }
+  for (const workout of rows) {
+    const item = document.createElement("li");
+    const name = document.createElement("strong");
+    const details = document.createElement("small");
+    const validName = typeof workout.workout_data?.name === "string" &&
+      workout.workout_data.name.trim();
+    name.textContent = validName ? workout.workout_data.name.slice(0, 120) : "Untitled workout";
+    const date = new Date(workout.created_at);
+    const when = Number.isNaN(date.getTime()) ? "Date unknown" : date.toLocaleString();
+    const classification = workout.workout_data?.test_record === true ? "TEST RECORD" : "Workout";
+    details.textContent = classification + " · " + when;
+    item.append(name, details);
+    cloudList.append(item);
+  }
+}
+
+async function loadCloudWorkouts(ownerId) {
+  if (!client || currentUser?.id !== ownerId) return;
+  const request = ++workoutRequestSequence;
+  refreshWorkoutsButton.disabled = true;
+  announceCloud("Loading your private workouts from Supabase…");
+  try {
+    // Explicit owner filter is for query efficiency; RLS is the real authorization boundary.
+    const { data, error } = await client.from("workouts")
+      .select("id,client_workout_id,workout_data,created_at")
+      .eq("user_id", ownerId)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    if (request !== workoutRequestSequence || currentUser?.id !== ownerId) return;
+    if (error) throw error;
+    renderCloudWorkoutList(data || []);
+    announceCloud("Showing " + (data || []).length + " workout(s) accessible to this account (latest 25).", "success");
+  } catch (error) {
+    if (request !== workoutRequestSequence || currentUser?.id !== ownerId) return;
+    cloudList.replaceChildren();
+    announceCloud("Unable to load workouts: " + (error?.message || "Unknown error"), "error");
+  } finally {
+    if (request === workoutRequestSequence) refreshWorkoutsButton.disabled = false;
+  }
+}
+
+saveWorkoutButton.addEventListener("click", async () => {
+  if (!client || !currentUser || busy) return;
+  const ownerId = currentUser.id;
+  const confirmed = window.confirm(
+    "Save one new TEST workout to your Supabase account? " +
+    "This will not upload your device workouts or alter existing cloud entries."
+  );
+  if (!confirmed) return;
+  busy = true;
+  saveWorkoutButton.disabled = true;
+  announceCloud("Saving a sample workout to your private cloud account…");
+  try {
+    const sample = {
+      user_id: ownerId,
+      client_workout_id: "preview-" + crypto.randomUUID(),
+      workout_data: {
+        name: "TEST - Workout saved from preview",
+        exercises: [],
+        test_record: true,
+        source: "lift-journal-2-auth-preview"
+      }
+    };
+    const { data, error } = await client.from("workouts").insert(sample).select("id").single();
+    if (error) throw error;
+    if (!data?.id) throw new Error("The database did not confirm the inserted workout.");
+    if (currentUser?.id !== ownerId) return;
+    announceCloud("Sample workout saved to Supabase.", "success");
+    await loadCloudWorkouts(ownerId);
+  } catch (error) {
+    if (currentUser?.id === ownerId) {
+      announceCloud("Could not save the sample workout: " + (error?.message || "Unknown error"), "error");
+    }
+  } finally {
+    busy = false;
+    saveWorkoutButton.disabled = false;
+  }
+});
+
+refreshWorkoutsButton.addEventListener("click", () => {
+  if (currentUser?.id) void loadCloudWorkouts(currentUser.id);
 });
 
 async function init() {
