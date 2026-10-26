@@ -5,8 +5,8 @@
 This branch adds an **isolated** account preview at auth-preview.html, connected to the Lift Journal Supabase project using its **public publishable** API key, with the SDK version pinned.
 
 - auth-config.js — public project URL and publishable key; signupEnabled is false.
-- auth-ui.mjs — test-only password sign-in, session verification, sign-out, private profile lookup, and explicit profile creation/editing.
-- auth-preview.html — responsive UI with disabled sign-up fields and an independent Supabase auth status.
+- auth-ui.mjs — test-only password sign-in, session verification, sign-out, private profile lookup and editing, plus explicit saving/listing of cloud **sample workouts** (not real workout sync).
+- auth-preview.html — responsive UI with disabled sign-up fields, profile controls, and a cloud workout test area. Saving requires an explicit confirmation; records are labeled TEST.
 - No changes to the production index.html, service worker, Cloudflare Worker, or existing workout data.
 
 This is **NOT** a production-ready account rollout. PR remains a draft and must not be merged without explicit owner approval.
@@ -40,6 +40,33 @@ The frontend signupEnabled:false switch prevents this preview from offering publ
 
 - Public sign-ups, invitation email, confirmation callback, password reset, social logins.
 - Automatic profile creation or automatic upload/merge of existing workouts.
-- Cloud workout storage/sync, messaging, AI history integration, subscriptions.
+- Automatic or real workout storage/sync from the live Lift Journal app, messaging, AI history integration, subscriptions.
 
 Lift Journal launches free first, with optional Pro later.
+
+## Verified manual Supabase tests (October 25, 2026)
+
+The owner confirmed by screenshots:
+- Two manually provisioned test accounts with distinct profiles (Admin and Test User).
+- Session persistence after browser reload.
+- RLS isolation: one account's profile SELECT and UPDATE cannot access the other account's profile.
+- Anonymous profile SELECT returns zero rows.
+- After correcting broad grants, public.profiles granted only SELECT, INSERT, UPDATE to authenticated; anon and DELETE denied.
+- public.workouts table created with a separate user_id, a unique (user_id,client_workout_id), JSONB data, three authenticated own-row RLS policies, and exposed through Data API.
+- SQL grants for public.workouts verified: only authenticated SELECT, INSERT, UPDATE.
+- A sample workout inserted through the REST API as Test User; its row verified in Table Editor.
+- Admin could neither SELECT nor UPDATE the Test User workout through the authenticated REST API; anonymous SELECT returned zero rows.
+
+## New UI test to perform (not yet browser-tested)
+
+1. Keep Supabase > Authentication > Sign In / Providers > **Allow new users to sign up** OFF.
+2. Download a fresh ZIP of branch feature/lift-journal-2-auth-preview and extract it; previously downloaded ZIPs do not update automatically.
+3. Start the local Python server from the inner folder containing auth-preview.html:
+   python -m http.server 8000 --bind 127.0.0.1
+4. Open http://127.0.0.1:8000/auth-preview.html and sign in as Test User.
+5. Check Your cloud workouts — test area, where the manually created "TEST - Cloud Storage" record should appear.
+6. Click Save sample workout and approve the browser confirmation. Expect a success notice and an additional "TEST - Workout saved from preview" record.
+7. Click Refresh cloud list and verify both records appear. Sign out and sign in as Admin; expect no Test User cloud workouts.
+8. Do not import or sync any real device workouts in this test; no cloud delete is implemented and sample records remain until explicitly cleaned up.
+
+This change is **draft only**, and does not touch the public app or local workout data. All UI/network behavior must be verified on the owner's machine before considering further work.
