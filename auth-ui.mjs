@@ -1,3 +1,5 @@
+import { initBackupUploader } from "./cloud-backup-upload.mjs";
+
 // Lift Journal 2.0 isolated authentication preview.
 // No code in this module reads or writes the existing "lift-journal-v1" workout data.
 // Authentication is limited to existing TEST accounts; signup is disabled pending SMTP and security review.
@@ -30,6 +32,14 @@ let currentUser = null;
 let busy = false;
 let initialized = false;
 let workoutRequestSequence = 0;
+const backupUploader = initBackupUploader({
+  getClient: () => client,
+  getUser: () => currentUser,
+  afterUpload: async ownerId => {
+    if (currentUser?.id === ownerId) await loadCloudWorkouts(ownerId);
+  }
+});
+
 
 function announce(message, kind = "info") {
   status.textContent = message;
@@ -60,6 +70,7 @@ tabList.addEventListener("keydown", event => {
 
 function showGuest() {
   currentUser = null;
+  backupUploader.setAccount(null);
   tabList.hidden = false;
   signedIn.hidden = true;
   // Clear the previous user's visible cloud data immediately on sign-out.
@@ -75,6 +86,7 @@ function showGuest() {
 
 async function showAccount(user) {
   currentUser = user;
+  backupUploader.setAccount(user.id);
   tabList.hidden = true;
   $("panel-login").hidden = true;
   $("panel-signup").hidden = true;
