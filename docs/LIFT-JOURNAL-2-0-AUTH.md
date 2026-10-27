@@ -40,7 +40,7 @@ The frontend signupEnabled:false switch prevents this preview from offering publ
 
 - Public sign-ups, invitation email, confirmation callback, password reset, social logins.
 - Automatic profile creation or automatic upload/merge of existing workouts.
-- Automatic or real workout storage/sync from the live Lift Journal app, messaging, AI history integration, subscriptions.
+- Automatic or real workout storage/sync from the live Lift Journal app, safe download/merge into its local history, messaging, AI history integration, subscriptions.
 
 Lift Journal launches free first, with optional Pro later.
 
@@ -110,3 +110,33 @@ Files:
 - Configure custom SMTP and consent/retention settings before enabling public registrations.
 - Move the stable schema and RLS policies to version-controlled database migrations.
 
+
+## Stage 2 — Private, non-destructive cloud archive download (draft; needs owner browser tests)
+
+Added `cloud-workout-download.mjs` and a signed-in-only section after the Stage 1 uploader. This feature:
+- Loads **all** workouts visible to the current authenticated account (not just the latest 25) through RLS-protected, user-scoped, paginated API reads (200 per page).
+- Shows names, dates and exercise counts. Users select individual workouts or click `Select all workouts`.
+- Before downloading, explicitly confirms the signed-in email, number of workouts and sensitivity of exported training/check-in data.
+- Downloads **only the selected workout data** as `lift-journal-cloud-workouts-YYYY-MM-DD.json`.
+- Refuses incomplete/invalid cloud responses, count inconsistencies and duplicate IDs; maximum 5,000 workouts and a 20 MB output in this pilot.
+- Resets the visible list/selections when switching accounts; never reads or writes the live app's `lift-journal-v1` localStorage, and never changes Supabase records.
+
+### Archive format is deliberately incompatible with the live app importer
+
+The exported file has `format: "lift-journal-cloud-workouts-v1"`, `workout_count`, and `workouts` array with `client_workout_id`, `workout_data`, `created_at`, and `updated_at`. It omits row UUIDs, owner IDs, and authentication data. It is a private, portable **cloud archive** that can be examined and backed up on another device.
+
+**It does NOT restore workouts into Lift Journal's history.** The existing production Settings > Import backup action replaces local data, rather than merging. Never tell a tester to import this Stage 2 archive through that action. A separate conflict-aware, non-destructive merge path will be developed and tested before device restoration.
+
+### Stage 2 browser test plan
+
+1. Download a fresh ZIP of `feature/lift-journal-2-auth-preview` after the Stage 2 commit; old extracted folders are not updated automatically.
+2. Start a local Python HTTP server in the inner folder that contains `auth-preview.html` and `cloud-workout-download.mjs` (a new unused port can be used).
+3. Sign in as Test User. In `Stage 2 — Download your cloud workouts`, click `Load my cloud workouts`. Expect the existing four or more Test User records (the two sample records and one backup-imported record have already been manually verified; actual count may have increased).
+4. Select only `TEST - Imported From Backup`, click Download, read the warning and confirm. Browser should save `lift-journal-cloud-workouts-YYYY-MM-DD.json`.
+5. Inspect the downloaded JSON in a text editor. It should have `format: "lift-journal-cloud-workouts-v1"` and exactly one workout, including its exercises.
+6. With another test account (Admin), load the cloud list and verify only Admin's data appears. Sign out and verify the previous list and selections are cleared.
+7. Check live Lift Journal on each device: no history changed. Do not use the existing `Import backup` feature with this archive.
+
+Pure function/read pagination tests: `node --test tests/cloud-workout-download.test.mjs` (Node optional for local Python server). Browser-side download flow still requires manual owner confirmation.
+
+**No production release, automatic sync, cloud deletion, or local merge is included.**
