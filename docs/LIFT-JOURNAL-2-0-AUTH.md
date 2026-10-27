@@ -70,3 +70,43 @@ The owner confirmed by screenshots:
 8. Do not import or sync any real device workouts in this test; no cloud delete is implemented and sample records remain until explicitly cleaned up.
 
 This change is **draft only**, and does not touch the public app or local workout data. All UI/network behavior must be verified on the owner's machine before considering further work.
+
+## Stage 1 — Opt-in, non-destructive backup upload (draft; browser test pending)
+
+Files:
+- `cloud-backup-upload.mjs` parses Lift Journal's actual Settings > Export backup (.json) structure: `{ format:"lift-journal-v1", data:{unit,sessions} }`.
+- `auth-preview.html` adds a signed-in-only backup picker, completed-workout selection, explicit confirmation, and upload status.
+- `tests/fixtures/lift-journal-backup-sample.json` contains one synthetic completed workout suitable for tests when no real workouts exist.
+- `tests/backup-upload.test.mjs` contains pure-parser validation tests; runnable with `node --test tests/backup-upload.test.mjs` for development (Node is optional for the owner's Python web server).
+
+### Important safeguards
+
+1. **Opt-in only:** Selecting a file does not upload anything. The user selects individual workouts or explicitly selects all, then confirms the account email and data scope in a second dialog.
+2. Only completed workout sessions in `data.sessions` are considered; unfinished sessions are excluded. Nutrition, running logs, favorites, and other top-level backup data are **not** uploaded.
+3. Backup is read as a local file and remains unchanged. The module never touches `localStorage` (notably `lift-journal-v1`), and it does not import anything back onto the device.
+4. Cloud row ID: `client_workout_id = "lj-session:" + originalSessionKey`. Existing rows with that same ID **for the same account** are skipped. Re-selecting a backup will not overwrite cloud records. This pilot offers **INSERT only**, no upsert/update/delete.
+5. Records preserve workout data from each completed session, including any recorded sets, notes, check-in data, and training preferences. The confirmation warns about potentially sensitive content. Upload cannot currently be undone through this preview.
+6. Fail closed if duplicate lookups fail. Limit files to 20 MB and 250 completed workouts; batch inserts in groups of 10. Network errors may leave a **partial upload**; select the same file again to recheck which IDs succeeded.
+7. Database RLS/GRANT still restrict reads/writes to the signed-in account; the importer checks account identity before each batch and clears selected files on sign-out/account change.
+8. This is an **experimental test flow only**. Backup import/download, conflict resolution, schema migrations, offline queues, and automatic synchronization have **not** been implemented. Do not treat this as a production migration feature.
+
+### How to test (after downloading the NEW branch ZIP)
+
+1. Keep Supabase public signups disabled, and retain a backup of any current local Lift Journal data.
+2. Extract a fresh ZIP of branch `feature/lift-journal-2-auth-preview`. Earlier downloaded folders do not update automatically.
+3. In the **inner folder containing auth-preview.html**, run `python -m http.server 8001 --bind 127.0.0.1` and open `http://127.0.0.1:8001/auth-preview.html`.
+4. Sign in as Test User. In "Cloud upload from a Lift Journal backup", choose the synthetic sample JSON through the supplied download link (or a genuine backup from the live app).
+5. Check that one completed workout is previewed and nothing is uploaded until a checkbox is selected.
+6. Select it, click "Upload 1 selected workout", read the account/data confirmation, and accept. Expect one extra row under Test User.
+7. Choose the **same backup again**; the new record must show "ALREADY IN CLOUD — skipped" and not be selectable.
+8. Sign out and sign in as Admin. That uploaded workout must not appear. The original backup file and live app data must remain untouched.
+9. If any unexpected change or error occurs, stop and capture a screenshot. Do not attempt repeated bulk uploads without review.
+
+### Further tasks before wider rollout
+
+- Add controlled download and non-destructive merge of cloud workouts, with explicit conflict choices.
+- Test offline mode, retries, two-device edits, deduplication, and handling of partial failures.
+- Decide how sensitive workout/check-in information will be handled in the privacy policy.
+- Configure custom SMTP and consent/retention settings before enabling public registrations.
+- Move the stable schema and RLS policies to version-controlled database migrations.
+
