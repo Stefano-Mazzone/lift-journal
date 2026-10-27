@@ -76,6 +76,15 @@ function invalidate() {
 }
 function update() {
   const selectedCount = selectedUploads.size + selectedDownloads.size;
+  // Comparison rows are first rendered while busy=true. Recalculate the row
+  // controls when the async comparison finishes, rather than leaving safe
+  // eligible checkboxes permanently disabled.
+  for (const list of [elements.uploadList, elements.downloadList]) {
+    for (const checkbox of list.querySelectorAll('input[type="checkbox"]')) {
+      checkbox.disabled = busy || !snapshot || !user ||
+        checkbox.dataset.eligible !== "true";
+    }
+  }
   elements.compare.disabled = busy || !user || !localOnly;
   elements.backup.disabled = busy || !snapshot;
   elements.backupCheck.disabled = busy || !snapshot || !backupRequested;
@@ -123,7 +132,8 @@ function createRow(entry, destination) {
   const label = document.createElement("label");
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.disabled = entry.status !== "eligible" || busy;
+  checkbox.dataset.eligible = entry.status === "eligible" ? "true" : "false";
+  checkbox.disabled = busy || entry.status !== "eligible";
   const set = entry.direction === "upload" ? selectedUploads : selectedDownloads;
   checkbox.checked = set.has(entry.id);
   checkbox.addEventListener("change", () => {
