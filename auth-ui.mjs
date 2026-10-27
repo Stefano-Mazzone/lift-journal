@@ -1,5 +1,6 @@
 import { initBackupUploader } from "./cloud-backup-upload.mjs";
 import { initCloudDownloader } from "./cloud-workout-download.mjs";
+import { initCloudMerge } from "./cloud-safe-merge.mjs";
 
 // Lift Journal 2.0 isolated authentication preview.
 // No code in this module reads or writes the existing "lift-journal-v1" workout data.
@@ -44,6 +45,10 @@ const cloudDownloader = initCloudDownloader({
   getClient: () => client,
   getUser: () => currentUser
 });
+const cloudMerger = initCloudMerge({
+  getClient: () => client,
+  getUser: () => currentUser
+});
 
 
 function announce(message, kind = "info") {
@@ -77,6 +82,7 @@ function showGuest() {
   currentUser = null;
   backupUploader.setAccount(null);
   cloudDownloader.setAccount(null);
+  cloudMerger.setAccount(null);
   tabList.hidden = false;
   signedIn.hidden = true;
   // Clear the previous user's visible cloud data immediately on sign-out.
@@ -94,6 +100,7 @@ async function showAccount(user) {
   currentUser = user;
   backupUploader.setAccount(user.id);
   cloudDownloader.setAccount(user.id);
+  cloudMerger.setAccount(user.id);
   tabList.hidden = true;
   $("panel-login").hidden = true;
   $("panel-signup").hidden = true;
