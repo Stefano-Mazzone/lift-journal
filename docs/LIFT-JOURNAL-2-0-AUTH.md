@@ -140,3 +140,47 @@ The exported file has `format: "lift-journal-cloud-workouts-v1"`, `workout_count
 Pure function/read pagination tests: `node --test tests/cloud-workout-download.test.mjs` (Node optional for local Python server). Browser-side download flow still requires manual owner confirmation.
 
 **No production release, automatic sync, cloud deletion, or local merge is included.**
+
+## Stage 3 — Non-destructive workout merge preview (draft; browser test pending)
+
+### Why Stage 3 uses a destination-device backup
+
+The existing live `Settings → Import backup (.json)` feature **replaces** all device data including sessions, nutrition, running, program, favorites and settings. The isolated `auth-preview.html` is on a different origin from the production app and deliberately cannot read or change the installed app's localStorage. Therefore Stage 3 is a **manual, review-only merger** — NOT automatic restoration or live sync.
+
+The signed-in user supplies a full `lift-journal-v1` backup **exported from the device that should receive the cloud workouts**. Stage 3 then:
+1. Validates that full destination backup locally (max 20 MB and 10,000 workouts).
+2. Fetches **this account's** complete cloud workout list using the existing read-only RLS-scoped, paginated `fetchCloudWorkouts`.
+3. Compares each cloud row against the destination backup. Only records with original Lift Journal session IDs (`lj-session:<original-id>`), completed sessions and compatible workout fields are selectable.
+4. Unselectable items include cloud-only test placeholders, IDs that already exist on the destination device, malformed/incompatible sessions, and possible duplicates with matching exact start/end times.
+5. The user explicitly selects workouts and then approves an account-aware confirmation before receiving a new `lift-journal-MERGED-PREVIEW-YYYY-MM-DD.json` file.
+6. The new file is in the **complete** native `lift-journal-v1` format. It preserves every destination backup section, including existing workouts, food, running, favorites, program and schedule. Missing selected completed cloud sessions are added under their original IDs; existing sessions are **never replaced**. Each workout's original `lb`/`kg` unit is preserved.
+7. The original destination backup file remains unchanged; nothing reads or writes the live app's localStorage and there are no Supabase mutations.
+8. Merged output is revalidated and capped at the live importer's 20 MB size / 10,000-workout limits. Maximum of 250 new workouts in this pilot. On error, no output file is produced.
+9. The UI and documentation explicitly **forbid importing the newly generated file into the real app during testing**. The file can be inspected and backed up; separately approve and test the destructive import flow on a disposable device/account or an isolated test copy first.
+
+### Testing assets
+
+- `cloud-safe-merge.mjs` — pure device-backup validator, cloud/session comparison, merged-backup builder, and isolated browser controls.
+- `tests/fixtures/lift-journal-stage3-device-backup.json` — fictional destination device with **one existing completed workout**, `kg` settings, favorites, nutrition, running data, program and schedule.
+- `tests/fixtures/lift-journal-backup-sample.json` — fictional Stage 1 original completed cloud workout with `lb` weights, already uploaded under Test User by owner.
+- `tests/cloud-safe-merge.test.mjs` — regression tests for valid merges, non-mutating inputs, preservation of all destination sections, mixed weight units, duplicate/collision protection, invalid IDs/records, and output safety.
+
+### First owner browser test (safe, no real device backups)
+
+1. Download a **fresh ZIP** of branch `feature/lift-journal-2-auth-preview` after the Stage 3 commit. Open the inner folder containing `auth-preview.html` and `cloud-safe-merge.mjs`.
+2. Run `python -m http.server 8005 --bind 127.0.0.1` there. Visit `http://127.0.0.1:8005/auth-preview.html`, sign in as Test User.
+3. Scroll to **Stage 3 — Restore preview**. Click **download a fictional destination-device backup** and save `lift-journal-stage3-test-device-backup.json`.
+4. Click **Choose destination device backup** and select the downloaded file. It should recognize **1 existing device workout**.
+5. Click **Compare with my cloud**. Expect the previously uploaded **TEST - Imported From Backup** to be eligible; empty/incomplete manually created cloud test placeholders should be labeled incompatible and unselectable.
+6. Select only **TEST - Imported From Backup**, click **Create merged backup**, carefully read the warning and confirm.
+7. Open the new `lift-journal-MERGED-PREVIEW-YYYY-MM-DD.json` in a text editor. Expect `format: lift-journal-v1`, `data.sessions` containing both the existing **TEST - Already on destination device** and the cloud **TEST - Imported From Backup**. Check `favoriteMovements`, `nutrition`, `running` and `unit: kg` were preserved. The imported workout itself should have `unit: lb`.
+8. **Do not import the new file into the real app.** Report screenshots and tests before any further restoration work.
+
+### Not yet implemented
+
+- Applying a merged backup to a device automatically.
+- Non-destructive direct in-app import/merge and user-controlled conflict resolution.
+- Automatic background sync, offline queues, changes across two devices, and data retention/deletion settings.
+- Public authentication/signup. Supabase server-side new registrations must remain disabled.
+
+**No production app file or original device data changed. Draft PR #11 must remain unpublished until explicit authorization.**
