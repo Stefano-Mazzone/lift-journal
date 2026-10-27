@@ -67,7 +67,16 @@
 <div class="backup-controls"><button id="backup-select-all" type="button" class="secondary" disabled>Select all new workouts</button></div>
 <ul class="backup-items" id="backup-workouts-list" aria-label="Workouts in selected backup"></ul>
 <button id="backup-upload-button" type="button" class="submit upload-button" disabled>Upload selected workouts</button>
-<p class="cloud-note">A backup can contain sensitive training and check-in details. Review the confirmation before uploading. This pilot does not implement cloud deletion or download.</p>
+<p class="cloud-note">A backup can contain sensitive training and check-in details. Review the confirmation before uploading. This uploader cannot delete cloud records. To download a separate archive, use Stage 2 below.</p>
+</section>
+<section class="backup-upload cloud-download" id="cloud-download-section" hidden aria-labelledby="cloud-download-heading">
+<h2 id="cloud-download-heading">Stage 2 — Download your cloud workouts</h2>
+<p class="caption">Review the workouts stored in this account, choose which ones you want to keep, and download a private JSON archive. The file is saved on this device only after you confirm.</p>
+<div class="backup-controls"><button id="cloud-download-load" type="button" class="secondary">Load my cloud workouts</button><button id="cloud-download-select-all" type="button" class="secondary" disabled>Select all workouts</button></div>
+<p id="cloud-download-status" class="backup-summary" aria-live="polite">Load your cloud workouts to review and choose which ones to download.</p>
+<ul id="cloud-download-list" class="backup-items" aria-label="Cloud workouts available to download"></ul>
+<button id="cloud-download-button" type="button" class="submit upload-button" disabled>Download selected workouts (.json)</button>
+<p class="cloud-note"><strong>Important:</strong> This download is a <em>cloud archive</em>, not a Lift Journal backup. <strong>Do not use Settings → Import backup with this file</strong>; that feature replaces existing local data. Safe cloud-to-device merging is a separate future feature. The download does not modify Supabase or local workouts.</p>
 </section>
 </section>
 </section><p class="privacy">The existing app and its locally saved workouts are unchanged.</p></main>
