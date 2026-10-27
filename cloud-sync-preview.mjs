@@ -41,6 +41,7 @@ const elements = {
   downloadList: $("sync-download-list"),
   backup: $("sync-safety-backup"),
   backupCheck: $("sync-backup-confirmed"),
+  ownerCheck: $("sync-owner-confirmed"),
   apply: $("sync-apply")
 };
 
@@ -62,6 +63,7 @@ function invalidate() {
   selectedUploads.clear();
   selectedDownloads.clear();
   elements.backupCheck.checked = false;
+  elements.ownerCheck.checked = false;
   elements.localCount.textContent = "—";
   elements.cloudCount.textContent = "—";
   elements.uploadCount.textContent = "—";
@@ -77,8 +79,10 @@ function update() {
   elements.compare.disabled = busy || !user || !localOnly;
   elements.backup.disabled = busy || !snapshot;
   elements.backupCheck.disabled = busy || !snapshot || !backupRequested;
+  elements.ownerCheck.disabled = busy || !snapshot;
   elements.apply.disabled = busy || !snapshot || !backupRequested ||
-    !elements.backupCheck.checked || selectedCount === 0 || selectedCount > MAX_CHANGES;
+    !elements.backupCheck.checked || !elements.ownerCheck.checked ||
+    selectedCount === 0 || selectedCount > MAX_CHANGES;
   elements.apply.textContent = selectedCount ?
     "Sync " + selectedCount + " selected workout change(s)" : "Sync selected workouts";
   elements.selection.textContent = selectedCount > MAX_CHANGES ?
@@ -244,9 +248,12 @@ elements.backup.addEventListener("click", () => {
   }
 });
 
+elements.backupCheck.addEventListener("change", update);
+elements.ownerCheck.addEventListener("change", update);
+
 elements.apply.addEventListener("click", async () => {
   if (!snapshot || !user || busy || !localOnly || !backupRequested ||
-      !elements.backupCheck.checked) return;
+      !elements.backupCheck.checked || !elements.ownerCheck.checked) return;
   const current = snapshot;
   const uploadIds = [...selectedUploads];
   const downloadIds = [...selectedDownloads];
