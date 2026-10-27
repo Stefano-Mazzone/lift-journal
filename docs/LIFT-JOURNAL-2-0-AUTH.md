@@ -195,7 +195,7 @@ Stage 4 adds a **standalone loopback-only** \`sync-preview.html\` test page. **T
 - The sync page is served at **the same origin as a disposable local Lift Journal test installation**, e.g. \`http://127.0.0.1:8006/index.html\` and \`http://127.0.0.1:8006/sync-preview.html\`. Browser storage keys are isolated by *origin*, including **port**. Do not switch ports between those pages while testing the same fictional data.
 - Only localhost/127.0.0.1 is allowed; the page refuses to initialize its Supabase test login on a public hostname.
 - Uses the existing public Supabase publishable key and pinned SDK; **never** a service-role API key. Only authorized manually created test accounts may sign in. Public signups remain blocked server-side.
-- Nothing runs automatically. The user must: **Compare with cloud**, select specific eligible records, **Download full local safety backup**, explicitly affirm that file was saved, and approve a final account-scoped sync confirmation.
+- Nothing runs automatically. The user must: **Compare with cloud**, select specific eligible records, **Download full local safety backup**, explicitly affirm that file was saved, separately confirm the local data belongs to the currently signed-in account, and approve a final account-scoped sync confirmation.
 - Only completed *native* Lift Journal workout sessions with safe original session IDs are eligible; incomplete preview cloud rows are shown but disabled. In-progress local sessions remain stored only on the device.
 - Cloud matching IDs with different content are **conflicts** and blocked (not arbitrarily overwritten); same timestamp across distinct IDs is a potential duplicate and also blocked. JSONB object keys are normalized for semantically correct equality comparisons.
 - On each confirmed sync, cloud is **fetched again**, user identity reverified, local raw storage compared with the original snapshot, and the selected sync plan recalculated. If anything changed, stop rather than guessing.
@@ -221,7 +221,7 @@ Stage 4 adds a **standalone loopback-only** \`sync-preview.html\` test page. **T
 5. Open a **new tab** at \`http://127.0.0.1:8006/sync-preview.html\`. Sign in with existing Test User credentials (do not paste passwords into chat).
 6. Click **Compare this device with my cloud**. With the original fixtures, expect **2 local workouts, 4 cloud workouts, 1 safe upload** (the fictional destination-device Goblet Squat workout), **0 safe downloads** (the imported Stage 1 backup workout already exists locally), plus three unsupported cloud test placeholders.
 7. Do **not select/apply yet**; send a screenshot for review before the first cloud insertion.
-8. Only after reviewing that comparison: select the missing local workout, click **Download full local safety backup**, verify file exists, tick acknowledgement, then approve manual sync to test cloud. Recompare to confirm it is now classified as **already in cloud**.
+8. Only after reviewing that comparison: select the missing local workout, click **Download full local safety backup**, verify file exists, tick **both** the backup-saved and account-ownership acknowledgements, then approve manual sync to test cloud. Recompare to confirm it is now classified as **already in cloud**.
 9. Refresh \`index.html\` on the same port and verify both workouts and the nutrition/favorites remain unchanged. Test with a *separate fictional test origin* for cloud-to-device download before any real data.
 
 ### Release gate
