@@ -60,6 +60,12 @@ export function buildSyncPlan(localData, cloudRows) {
   }
   const down = cloudPlan.entries.map(entry => {
     let status = entry.status;
+    const remoteSession = cloudById.get(entry.id)?.workout_data;
+    // A legacy record without its own weight unit cannot be safely restored
+    // to a second device that may be set to the other unit.
+    if (status === "eligible" && !["lb", "kg"].includes(remoteSession?.unit)) {
+      status = "unsupported";
+    }
     if (status === "already") {
       const local = validated.sessions[entry.originalId];
       const remote = cloudById.get(entry.id)?.workout_data;
@@ -69,7 +75,9 @@ export function buildSyncPlan(localData, cloudRows) {
     return {
       direction: "download", id: entry.id, sessionId: entry.originalId,
       name: entry.name, date: entry.date, status,
-      reason: status === "conflict" ? "Same ID has different data. Never automatically overwrite." : entry.reason
+      reason: status === "conflict" ? "Same ID has different data. Never automatically overwrite." :
+        status === "unsupported" && entry.status === "eligible" ?
+          "Workout weight unit is missing; cross-device conversion would be ambiguous." : entry.reason
     };
   });
 
@@ -82,6 +90,10 @@ export function buildSyncPlan(localData, cloudRows) {
       status = "unsupported"; reason = "Session identifier isn't supported by this pilot.";
     } else if (!session.finished) {
       status = "unfinished"; reason = "In-progress session remains local until complete.";
+    } else if (!["lb", "kg"].includes(session.unit)) {
+      status = "unsupported"; reason = "Workout has no explicit weight unit; sync would be ambiguous.";
+    } else if (session.backupSessionId != null && session.backupSessionId !== sessionId) {
+      status = "unsupported"; reason = "Original workout ID doesn't match its saved provenance.";
     } else if (remote) {
       status = payloadFingerprint(session) === payloadFingerprint(remote.workout_data) ?
         "already" : "conflict";
