@@ -15,14 +15,18 @@ const name = session => typeof session?.name === "string" && session.name.trim()
 const date = session => typeof session?.scheduledDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(session.scheduledDate) ?
   session.scheduledDate : String(session?.started || "").slice(0, 10);
 const clone = obj => JSON.parse(JSON.stringify(obj));
+const canonical = value => Array.isArray(value) ? value.map(canonical) :
+  record(value) ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
 const payloadFingerprint = session => {
-  // Server-only upload annotations do not count as a user edit.
+  // Postgres JSONB reorders object keys. Canonicalize before comparing, so a
+  // cloud serialization is not mistakenly shown as a conflicting user edit.
+  if (!record(session)) return null;
   const copy = clone(session);
   delete copy.backupSessionId;
   if (copy.source === "lift-journal-device-sync" || copy.source === "lift-journal-backup") {
     delete copy.source;
   }
-  return JSON.stringify(copy);
+  return JSON.stringify(canonical(copy));
 };
 
 export function makeSafetyBackup(localData, exportedAt) {
