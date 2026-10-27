@@ -56,6 +56,7 @@ function readRaw() {
 }
 function invalidate() {
   sequence++;
+  busy = false;
   snapshot = null;
   backupRequested = false;
   selectedUploads.clear();
