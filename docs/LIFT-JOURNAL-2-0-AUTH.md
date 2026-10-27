@@ -184,3 +184,46 @@ The signed-in user supplies a full `lift-journal-v1` backup **exported from the 
 - Public authentication/signup. Supabase server-side new registrations must remain disabled.
 
 **No production app file or original device data changed. Draft PR #11 must remain unpublished until explicit authorization.**
+
+
+## Stage 4 — Opt-in, same-origin manual sync test (draft; browser test pending)
+
+Stage 4 adds a **standalone loopback-only** \`sync-preview.html\` test page. **The live app (\`index.html\`) is unchanged**, and no automatic/background synchronization is enabled.
+
+### Architecture and safety
+
+- The sync page is served at **the same origin as a disposable local Lift Journal test installation**, e.g. \`http://127.0.0.1:8006/index.html\` and \`http://127.0.0.1:8006/sync-preview.html\`. Browser storage keys are isolated by *origin*, including **port**. Do not switch ports between those pages while testing the same fictional data.
+- Only localhost/127.0.0.1 is allowed; the page refuses to initialize its Supabase test login on a public hostname.
+- Uses the existing public Supabase publishable key and pinned SDK; **never** a service-role API key. Only authorized manually created test accounts may sign in. Public signups remain blocked server-side.
+- Nothing runs automatically. The user must: **Compare with cloud**, select specific eligible records, **Download full local safety backup**, explicitly affirm that file was saved, and approve a final account-scoped sync confirmation.
+- Only completed *native* Lift Journal workout sessions with safe original session IDs are eligible; incomplete preview cloud rows are shown but disabled. In-progress local sessions remain stored only on the device.
+- Cloud matching IDs with different content are **conflicts** and blocked (not arbitrarily overwritten); same timestamp across distinct IDs is a potential duplicate and also blocked. JSONB object keys are normalized for semantically correct equality comparisons.
+- On each confirmed sync, cloud is **fetched again**, user identity reverified, local raw storage compared with the original snapshot, and the selected sync plan recalculated. If anything changed, stop rather than guessing.
+- Cloud upload uses plain Supabase \`INSERT\` only, not \`UPSERT\`/\`UPDATE\`/\`DELETE\`. Local download adds **missing completed sessions only** to a cloned \`lift-journal-v1\` object and then saves it in the test origin's browser storage. It preserves all other local sections: existing workouts, schedule, nutrition, favorites, program, running logs, etc.
+- Limits to **25 selected changes per manual sync** and **20 MB** for safety backup and resulting local data.
+- A cloud insert may succeed before a later insertion/network failure or local storage failure. The page reports partial outcomes. On retry, compare first; never blindly repeat. It attempts to restore the previous storage snapshot if a local write fails.
+- No delete, rename, modify, conflict resolution, background retry or offline queue. **Do not test with genuine workout history yet.** User data deletion/recovery, multi-device simultaneous edits and account lifecycle need further work.
+
+### Files
+
+- \`cloud-sync-core.mjs\` — pure compare/plan/data-clone/backup module. Shared Stage 3 validation enforces native session compatibility.
+- \`cloud-sync-preview.mjs\` — local test UI, authorized Supabase query/insert, manual approval, backup, localStorage snapshot checking.
+- \`sync-preview.html\` — independent authenticated loopback-only test page; intentionally not linked from production app.
+- \`tests/cloud-sync-core.test.mjs\` — 15 pure test cases for two-way selection, exact merge preservation, unchanged source inputs, JSONB field ordering, collisions, stale selections, unfinished sessions, duplicate signatures, and safety backup.
+- Existing \`tests/fixtures/lift-journal-stage3-device-backup.json\` and \`tests/fixtures/lift-journal-backup-sample.json\` — fictional records for tests.
+
+### First browser test (owner)
+
+1. **Download fresh ZIP** of \`feature/lift-journal-2-auth-preview\`. Do not reuse a previously extracted folder.
+2. Open the old terminal that serves \`http://127.0.0.1:8006\` and press **Ctrl+C** to stop its Python server.
+3. In the **new ZIP's extracted inner folder** (containing \`sync-preview.html\`, \`cloud-sync-preview.mjs\`, \`cloud-sync-core.mjs\`, \`index.html\`), start **the same port**: \`python -m http.server 8006 --bind 127.0.0.1\`.
+4. Open \`http://127.0.0.1:8006/index.html\` in the **same Chrome profile**. Check both fictional Stage 3 restored workouts remain in History. If not, **stop**—the Stage 4 comparison should never fabricate/overwrite the missing local history.
+5. Open a **new tab** at \`http://127.0.0.1:8006/sync-preview.html\`. Sign in with existing Test User credentials (do not paste passwords into chat).
+6. Click **Compare this device with my cloud**. With the original fixtures, expect **2 local workouts, 4 cloud workouts, 1 safe upload** (the fictional destination-device Goblet Squat workout), **0 safe downloads** (the imported Stage 1 backup workout already exists locally), plus three unsupported cloud test placeholders.
+7. Do **not select/apply yet**; send a screenshot for review before the first cloud insertion.
+8. Only after reviewing that comparison: select the missing local workout, click **Download full local safety backup**, verify file exists, tick acknowledgement, then approve manual sync to test cloud. Recompare to confirm it is now classified as **already in cloud**.
+9. Refresh \`index.html\` on the same port and verify both workouts and the nutrition/favorites remain unchanged. Test with a *separate fictional test origin* for cloud-to-device download before any real data.
+
+### Release gate
+
+**No code in production \`index.html\`, \`service-worker.js\`, Cloudflare worker or service credentials was changed.** PR #11 must remain an unmerged draft pending explicit owner approval. Before a public launch we still need secure signup/SMTP, retention/deletion/consent, failure and conflict handling, a production UI for signed-in accounts, and true multi-device/offline tests.
