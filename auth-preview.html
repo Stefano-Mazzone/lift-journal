@@ -76,7 +76,20 @@
 <p id="cloud-download-status" class="backup-summary" aria-live="polite">Load your cloud workouts to review and choose which ones to download.</p>
 <ul id="cloud-download-list" class="backup-items" aria-label="Cloud workouts available to download"></ul>
 <button id="cloud-download-button" type="button" class="submit upload-button" disabled>Download selected workouts (.json)</button>
-<p class="cloud-note"><strong>Important:</strong> This download is a <em>cloud archive</em>, not a Lift Journal backup. <strong>Do not use Settings → Import backup with this file</strong>; that feature replaces existing local data. Safe cloud-to-device merging is a separate future feature. The download does not modify Supabase or local workouts.</p>
+<p class="cloud-note"><strong>Important:</strong> This download is a <em>cloud archive</em>, not a Lift Journal backup. <strong>Do not use Settings → Import backup with this file</strong>; that feature replaces existing local data. Stage 3 below tests a separate, offline merged backup. The download does not modify Supabase or local workouts.</p>
+</section>
+<section class="backup-upload" id="cloud-merge-section" hidden aria-labelledby="merge-heading">
+<h2 id="merge-heading">Stage 3 — Restore preview: protect existing device workouts</h2>
+<p class="caption">Upload a backup exported from the <strong>destination device</strong>, compare it to this signed-in account's cloud workouts, and select missing workouts. The result is a <strong>new merged backup file</strong> for review. Nothing is automatically restored to the device.</p>
+<label class="file-label" for="merge-device-file">Step A — Choose destination device backup (.json)</label>
+<input id="merge-device-file" type="file" accept=".json,application/json">
+<p class="upload-hint">Export one from the destination Lift Journal device via Settings → Export backup (.json). For a risk-free test, <a href="./tests/fixtures/lift-journal-stage3-device-backup.json" download="lift-journal-stage3-test-device-backup.json">download a fictional destination-device backup</a> instead.</p>
+<div class="backup-controls"><button id="merge-compare" class="secondary" type="button" disabled>Step B — Compare with my cloud</button><button id="merge-select-all" class="secondary" type="button" disabled>Select all safe additions</button></div>
+<p id="merge-status" class="backup-summary" aria-live="polite">Start by selecting an Export backup file from the destination device.</p>
+<ul id="merge-list" class="backup-items" aria-label="Cloud workout merge comparison"></ul>
+<button id="merge-download" class="submit upload-button" type="button" disabled>Create merged backup (.json)</button>
+<p class="cloud-note"><strong>Safety:</strong> Existing device workouts, food, running records, program, and favorites remain in the generated file. Cloud workouts that are incompatible, already present, or potential duplicates cannot be selected. The preview does not read or modify localStorage or Supabase.</p>
+<p class="cloud-note"><strong>Do not import the generated file into your real app during these tests.</strong> Lift Journal's current Import backup feature replaces local data. We'll review and test that separate, explicit restore step before using it with personal data.</p>
 </section>
 </section>
 </section><p class="privacy">The existing app and its locally saved workouts are unchanged.</p></main>
