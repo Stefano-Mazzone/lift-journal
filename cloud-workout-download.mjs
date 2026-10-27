@@ -132,6 +132,7 @@ export function initCloudDownloader({ getClient, getUser }) {
 
   function clear() {
     generation++;
+    loading = false;
     rows = null;
     chosen.clear();
     list.replaceChildren();
