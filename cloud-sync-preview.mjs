@@ -45,6 +45,16 @@ const elements = {
   apply: $("sync-apply")
 };
 
+// Accessible alternative to small native checkboxes. Added dynamically so the
+// test operator only needs to update this one JS file, not the HTML or app.
+const selectMissingCloudButton = document.createElement("button");
+selectMissingCloudButton.type = "button";
+selectMissingCloudButton.className = "btn";
+selectMissingCloudButton.textContent = "Select missing cloud workout(s)";
+selectMissingCloudButton.disabled = true;
+selectMissingCloudButton.setAttribute("aria-label", "Select eligible missing cloud workouts for manual download");
+elements.downloadList.before(selectMissingCloudButton);
+
 function announce(message, kind = "info") {
   elements.status.textContent = message;
   elements.status.dataset.kind = kind;
@@ -76,6 +86,9 @@ function invalidate() {
 }
 function update() {
   const selectedCount = selectedUploads.size + selectedDownloads.size;
+  const safeDownloads = snapshot?.plan.download.filter(entry => entry.status === "eligible") || [];
+  selectMissingCloudButton.disabled = busy || !snapshot || !user ||
+    snapshot.ownerId !== user.id || !localOnly || safeDownloads.length === 0;
   // Comparison rows are first rendered while busy=true. Recalculate the row
   // controls when the async comparison finishes, rather than leaving safe
   // eligible checkboxes permanently disabled.
@@ -83,6 +96,8 @@ function update() {
     for (const checkbox of list.querySelectorAll('input[type="checkbox"]')) {
       checkbox.disabled = busy || !snapshot || !user ||
         checkbox.dataset.eligible !== "true";
+      const choices = list === elements.uploadList ? selectedUploads : selectedDownloads;
+      checkbox.checked = choices.has(checkbox.dataset.workoutId);
     }
   }
   elements.compare.disabled = busy || !user || !localOnly;
@@ -133,6 +148,7 @@ function createRow(entry, destination) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.dataset.eligible = entry.status === "eligible" ? "true" : "false";
+  checkbox.dataset.workoutId = entry.id;
   checkbox.disabled = busy || entry.status !== "eligible";
   const set = entry.direction === "upload" ? selectedUploads : selectedDownloads;
   checkbox.checked = set.has(entry.id);
@@ -165,6 +181,27 @@ function render(plan) {
   for (const item of plan.download) createRow(item, elements.downloadList);
   update();
 }
+selectMissingCloudButton.addEventListener("click", () => {
+  if (!snapshot || busy || !user || snapshot.ownerId !== user.id || !localOnly) {
+    announce("Cannot select: comparison is outdated or the account is not ready. Compare again.", "error");
+    return;
+  }
+  const eligible = snapshot.plan.download.filter(entry => entry.status === "eligible");
+  const freeSlots = MAX_CHANGES - selectedUploads.size - selectedDownloads.size;
+  const missing = eligible.filter(entry => !selectedDownloads.has(entry.id));
+  if (!missing.length) {
+    announce("All eligible cloud workouts are already selected. Review the list below.", "success");
+    return;
+  }
+  if (freeSlots < missing.length) {
+    announce("Too many eligible workouts to select at once. Pick up to 25 manually.", "error");
+    return;
+  }
+  for (const entry of missing) selectedDownloads.add(entry.id);
+  update();
+  announce("Selected " + missing.length + " eligible cloud workout(s). No data has been changed. Save and verify a full backup before syncing.", "success");
+});
+
 function browserSave(json, filename) {
   const blob = new Blob([json], { type: "application/json" });
   const link = URL.createObjectURL(blob);
@@ -228,6 +265,9 @@ elements.compare.addEventListener("click", async () => {
     if (readRaw() !== raw) throw new Error("This device's history changed while comparing. Refresh comparison.");
     const plan = buildSyncPlan(localData, cloudRows);
     snapshot = { raw, localData, cloudRows, plan, ownerId };
+    // Rendering while busy=true previously left some eligible inputs disabled
+    // on Device B. Finish the async phase BEFORE creating any checkbox.
+    busy = false;
     render(plan);
     announce("Comparison ready. Choose missing workouts only, download a safety backup, then explicitly approve sync.", "success");
   } catch (error) {
