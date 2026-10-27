@@ -138,7 +138,7 @@ test("safety backup fully preserves local content without mutating source", () =
 
 test("rejects prototype-polluting original IDs", () => {
   const device = clone(local);
-  device.sessions["__proto__"] = clone(device.sessions["device-only-workout-001"]);
+  Object.defineProperty(device.sessions, "__proto__", { value: clone(device.sessions["device-only-workout-001"]), enumerable: true, configurable: true });
   const plan = buildSyncPlan(device, [fromCloud()]);
   assert.equal(plan.uploadCounts.unsupported, 1);
 });
