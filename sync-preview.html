@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; connect-src https://jarhehbbjcehbotfocbd.supabase.co; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Lift Journal 2.0 — Stage 4 Manual Sync Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#091117;--surface:#172833;--surface2:#203542;--line:#354f5c;--text:#f5fafb;--muted:#b7c8d1;--mint:#8af0c0}*{box-sizing:border-box}body{background:radial-gradient(ellipse at 8% 0%,#1c4039 0%,transparent 42%),var(--bg);color:var(--text);margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(880px,calc(100% - 28px));margin:38px auto 70px}h1{font-size:clamp(26px,4vw,36px);margin:12px 0 6px;letter-spacing:-.8px}h2{font-size:20px;margin:0 0 10px}h3{font-size:16px;margin:16px 0 6px}p{color:var(--muted);margin:7px 0 15px}strong{color:var(--text)}.brand{font-size:21px;font-weight:850}.brand em{font-style:normal;color:var(--mint)}.tag{display:inline-block;border:1px solid #558674;color:var(--mint);border-radius:99px;padding:4px 10px;font-size:12px;margin-left:8px}.panel{border:1px solid var(--line);background:linear-gradient(140deg,#1d343f,var(--surface));border-radius:18px;padding:22px;margin:18px 0}.warning{border:1px solid #977b4b;border-radius:12px;background:#423821;padding:13px;color:#ffe2ad;font-size:14px;margin:17px 0}.status{background:#10202b;border:1px solid var(--line);padding:13px;border-radius:11px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}.status[data-kind=error]{color:#ffbcbc;border-color:#a75e65}.status[data-kind=success]{color:#c5ffe2;border-color:#4c8b73}label{display:block;font-weight:700;font-size:14px;margin:14px 0 7px}input[type=email],input[type=password]{width:100%;max-width:420px;padding:13px;background:#10202b;color:var(--text);border:1px solid #54707d;border-radius:10px;font:inherit}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:13px 0}.btn{font:inherit;font-weight:750;padding:12px 15px;border:1px solid var(--line);border-radius:11px;background:var(--surface2);color:var(--text);cursor:pointer;min-height:45px}.btn.primary{background:var(--mint);border-color:var(--mint);color:#11251e}.btn:disabled{opacity:.43;cursor:not-allowed}.btn:focus-visible,input:focus-visible{outline:3px solid var(--mint);outline-offset:2px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.metric{background:#102531;border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}.metric b{font-size:26px;color:var(--mint);display:block}.metric span{font-size:12px;color:var(--muted)}.workouts{list-style:none;padding:0;margin:9px 0;max-height:410px;overflow:auto}.workouts li{border-bottom:1px solid var(--line);padding:8px 0}.workouts label{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;margin:0}.workouts input{width:20px;height:20px;flex:0 0 20px;accent-color:var(--mint);margin:3px 0}.workouts strong,.workouts small{display:block}.workouts small{font-size:12px;font-weight:400;color:var(--muted)}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}.fine{font-size:12px;color:var(--muted)}.ack{display:flex;align-items:flex-start;gap:12px;font-weight:600}.ack input{width:20px;height:20px;flex-shrink:0;accent-color:var(--mint);margin-top:2px}.outlinks a{color:#b6f7d9}.divider{border:0;border-top:1px solid var(--line);margin:18px 0}.origin{font-family:monospace;color:var(--mint);overflow-wrap:anywhere}#sync-account-email{font-weight:750;color:var(--mint)}[hidden]{display:none!important}@media(max-width:640px){.two-col{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,1fr)}.panel{padding:16px}main{margin-top:16px}}
+</style>
+</head>
+<body>
+<main>
+<div class="brand">LIFT<em>JOURNAL</em><span class="tag">Stage 4 · Manual Sync Preview</span></div>
+<h1>Sync with control, not surprises.</h1>
+<p>Preview missing workouts between this isolated test browser and your private Supabase account. Nothing happens automatically.</p>
+<div class="warning"><strong>LOCAL TEST ONLY.</strong> Use fictional data at <span class="origin" id="sync-origin"></span>. This page can change the workout data saved at the current localhost address after you explicitly confirm. Do not use a real device or real workout backup in this pilot.</div>
+<div class="status" id="sync-status" role="status" aria-live="polite">Preparing the test connection…</div>
+<section class="panel" aria-labelledby="account-heading">
+<h2 id="account-heading">1. Test account</h2>
+<form id="sync-login">
+<label for="sync-email">Email</label><input id="sync-email" type="email" autocomplete="email" required placeholder="Test account email">
+<label for="sync-password">Password</label><input id="sync-password" type="password" autocomplete="current-password" required placeholder="Test account password">
+<div class="controls"><button class="btn primary" id="sync-login-submit" type="submit">Sign in to test account</button></div>
+</form>
+<div id="sync-account" hidden><p>Signed in as <span id="sync-account-email"></span></p><button class="btn" type="button" id="sync-signout">Sign out</button></div>
+<p class="fine">Only existing authorized Supabase test accounts can sign in. New registration and automatic sync remain disabled.</p>
+</section>
+<section class="panel" aria-labelledby="compare-heading">
+<h2 id="compare-heading">2. Preview device ↔ cloud differences</h2>
+<p>This page reads the same <code>lift-journal-v1</code> browser storage as <a class="outlinks" href="./index.html">Lift Journal</a> on this exact address and port. Use a fictional Stage 3 test backup restored into that app first.</p>
+<div class="controls"><button class="btn primary" type="button" id="sync-compare" disabled>Compare this device with my cloud</button></div>
+<div class="summary" role="group" aria-label="Cloud sync comparison">
+<div class="metric"><b id="sync-local-count">—</b><span>Local workouts</span></div>
+<div class="metric"><b id="sync-cloud-count">—</b><span>Cloud workouts</span></div>
+<div class="metric"><b id="sync-upload-count">—</b><span>Safe uploads</span></div>
+<div class="metric"><b id="sync-download-count">—</b><span>Safe downloads</span></div>
+</div>
+<p>Conflicts or possible duplicates (never auto-overwritten): <strong id="sync-conflicts">—</strong></p>
+<div class="two-col">
+<div><h3>Upload missing local workouts</h3><p class="fine">Only completed original sessions are eligible. Updates to existing cloud workouts are never sent.</p><ul class="workouts" id="sync-upload-list" aria-label="Local workouts eligible for cloud upload"></ul></div>
+<div><h3>Download missing cloud workouts</h3><p class="fine">Only compatible completed sessions are eligible. Existing local workouts are never replaced.</p><ul class="workouts" id="sync-download-list" aria-label="Cloud workouts eligible for local download"></ul></div>
+</div>
+<p id="sync-selection" class="fine">No changes selected.</p>
+</section>
+<section class="panel" aria-labelledby="safety-heading">
+<h2 id="safety-heading">3. Save backup and approve selected changes</h2>
+<p>Before any write, you must download a complete safety backup of the current test device's workout data. Verify that Chrome saved it, then acknowledge below.</p>
+<div class="controls"><button class="btn" type="button" id="sync-safety-backup" disabled>Download full local safety backup (.json)</button></div>
+<label class="ack"><input id="sync-backup-confirmed" type="checkbox" disabled><span>I checked that the safety backup file was saved. I understand this is a fictional-data test.</span></label>
+<hr class="divider">
+<div class="controls"><button class="btn primary" type="button" id="sync-apply" disabled>Sync selected workouts</button></div>
+<p class="fine">A confirmation appears before changes. The app rechecks this device and Supabase first, refuses conflicts, inserts new cloud records without overwriting, and saves newly downloaded workouts only after the checks pass. Offline mode and automatic background synchronization are NOT implemented.</p>
+</section>
+<p class="fine outlinks">Keep this test isolated. Return to <a href="./index.html">Lift Journal test history</a> after a successful sync and refresh that page to verify workout persistence.</p>
+</main>
+<script src="./auth-config.js"></script>
+<script type="module" src="./cloud-sync-preview.mjs"></script>
+</body>
+</html>
