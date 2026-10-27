@@ -123,7 +123,8 @@ test("rejects a stale selection that became present after another device synced"
 test("rejects mismatched origin/provenance metadata", () => {
   const device = clone(local);
   device.sessions["device-only-workout-001"].backupSessionId = "somebody-else";
-  assert.throws(() => planSelectedSync(device, [fromCloud()], [localId], []), /provenance/);
+  assert.equal(buildSyncPlan(device, [fromCloud()]).uploadCounts.unsupported, 1);
+  assert.throws(() => planSelectedSync(device, [fromCloud()], [localId], []), /eligible/);
 });
 
 test("safety backup fully preserves local content without mutating source", () => {
@@ -141,4 +142,16 @@ test("rejects prototype-polluting original IDs", () => {
   Object.defineProperty(device.sessions, "__proto__", { value: clone(device.sessions["device-only-workout-001"]), enumerable: true, configurable: true });
   const plan = buildSyncPlan(device, [fromCloud()]);
   assert.equal(plan.uploadCounts.unsupported, 1);
+});
+
+
+test("refuses missing weight units rather than mislabeling weights across devices", () => {
+  const device = clone(local);
+  delete device.sessions["device-only-workout-001"].unit;
+  assert.equal(buildSyncPlan(device, [fromCloud()]).uploadCounts.unsupported, 1);
+  assert.throws(() => planSelectedSync(device, [fromCloud()], [localId], []), /eligible/);
+  const cloudRow = fromCloud();
+  delete cloudRow.workout_data.unit;
+  assert.equal(buildSyncPlan(local, [cloudRow]).downloadCounts.unsupported, 1);
+  assert.throws(() => planSelectedSync(local, [cloudRow], [], [cloudId]), /eligible/);
 });
