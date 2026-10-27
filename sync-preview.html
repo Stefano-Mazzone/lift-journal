@@ -49,6 +49,7 @@
 <p>Before any write, you must download a complete safety backup of the current test device's workout data. Verify that Chrome saved it, then acknowledge below.</p>
 <div class="controls"><button class="btn" type="button" id="sync-safety-backup" disabled>Download full local safety backup (.json)</button></div>
 <label class="ack"><input id="sync-backup-confirmed" type="checkbox" disabled><span>I checked that the safety backup file was saved. I understand this is a fictional-data test.</span></label>
+<label class="ack"><input id="sync-owner-confirmed" type="checkbox" disabled><span>I confirm these fictional local workouts should belong to my currently signed-in test account, not another user's account.</span></label>
 <hr class="divider">
 <div class="controls"><button class="btn primary" type="button" id="sync-apply" disabled>Sync selected workouts</button></div>
 <p class="fine">A confirmation appears before changes. The app rechecks this device and Supabase first, refuses conflicts, inserts new cloud records without overwriting, and saves newly downloaded workouts only after the checks pass. Offline mode and automatic background synchronization are NOT implemented.</p>
