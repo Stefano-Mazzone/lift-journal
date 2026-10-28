@@ -46,6 +46,10 @@ export function createSettingsManualSync({ getClient, getUser }) {
 
   function clear() {
     requestId++;
+    // A Settings rerender or account switch can invalidate an in-flight fetch.
+    // Release the busy latch immediately, otherwise the new account may
+    // remain permanently unable to compare until a full page reload.
+    busy = false;
     snapshot = null;
     backupRequested = false;
     uploads.clear();
