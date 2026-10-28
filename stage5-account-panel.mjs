@@ -1,6 +1,10 @@
-// Lift Journal 2.0 — Stage 5A: embedded ACCOUNT controls in the draft
-// Lift Journal Settings screen. Manual workout sync stays on sync-preview.html.
-// IMPORTANT: this file NEVER reads/writes lift-journal-v1 workout storage.
+import { createSettingsManualSync } from "./stage5-manual-sync.mjs";
+
+// Lift Journal 2.0 — Stage 5B: verified test accounts with opt-in
+// manual workout sync embedded directly in the draft Settings UI.
+// Authentication in this file never reads or writes workout storage.
+// The separately imported manual-sync module writes ONLY after explicit
+// comparison, safety-backup and account-owner confirmations.
 // Sign-in alone NEVER moves or attributes local workouts to a cloud account.
 // Active only on disposable 127.0.0.1 / localhost test origins.
 const config = window.LIFT_JOURNAL_AUTH;
@@ -18,6 +22,10 @@ let statusMessage = testOrigin ? "Checking your existing test account…" :
   "This experimental account integration is only enabled in the localhost test version.";
 let statusKind = "info";
 const state = () => ({ currentUser, displayName, busy, initialized, statusMessage, statusKind, testOrigin });
+const embeddedSync = createSettingsManualSync({
+  getClient: () => client,
+  getUser: () => currentUser
+});
 
 function setStatus(message, kind = "info") {
   statusMessage = message;
@@ -50,9 +58,10 @@ function renderAccount() {
   const canSignIn = initialized && !busy && !authenticated;
   signIn.disabled = !canSignIn;
   signOut.disabled = busy;
-  // Linking to the separate, proven Stage 4 sync page is the only action.
-  // Users still must compare, select workouts, download a backup, and confirm.
+  // The full-page Stage 4 link remains available as a fallback; manual sync
+  // now also renders directly inside the signed-in Settings section.
   sync.hidden = !authenticated;
+  embeddedSync.mount();
 }
 
 function isAccountPanel(el) {
