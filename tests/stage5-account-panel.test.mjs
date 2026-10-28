@@ -42,8 +42,10 @@ function accountHarness(hostname = "127.0.0.1") {
     addEventListener(name, callback) { (listeners[name] ||= []).push(callback); },
     setTimeout() {}
   };
-  const cleaned = source.replace(/renderAccount\(\);\s*void initialize\(\);\s*$/, "");
+  const cleaned = source.replace(/^import [^\n]*\n/gm, "")
+    .replace(/renderAccount\(\);\s*void initialize\(\);\s*$/, "");
   const api = new Function("window", "document", "location",
+    "const createSettingsManualSync = () => ({mount(){},reset(){}});\n" +
     cleaned + "\nreturn {" +
     "renderAccount,setStatus,getState:state," +
     "setVerifiedUser:(user,name)=>{currentUser=user;displayName=name;initialized=true;}," +
@@ -58,7 +60,7 @@ test("main app and account module remain syntactically valid", () => {
   const end = app.indexOf("</script>", start);
   assert.ok(start >= 0 && end > start);
   assert.doesNotThrow(() => new Function(app.slice(start + "<script>".length, end)));
-  assert.doesNotThrow(() => new Function(source));
+  assert.doesNotThrow(() => new Function(source.replace(/^import [^\n]*\n/gm, "")));
 });
 
 test("panel markup is unique, accessible and part of Settings only", () => {
@@ -71,6 +73,7 @@ test("panel markup is unique, accessible and part of Settings only", () => {
   assert.match(html, /id="lj-account-login"/);
   assert.match(html, /id="lj-account-open-sync"/);
   assert.match(html, /href=".\/sync-preview\.html"/);
+  assert.match(html, /id="lj-stage5-sync-root"/);
   assert.match(html, /Signing in never automatically uploads/i);
   assert.ok(app.includes("+whatsNewPanel()+stage5AccountPanel()"));
   assert.equal(app.split("+whatsNewPanel()+stage5AccountPanel()").length, 2);
@@ -83,6 +86,8 @@ test("scripts load after existing app and share existing test-only auth storage"
   assert.ok(app.includes('<script type="module" src="./stage5-account-panel.mjs"></script>'));
   assert.ok(source.includes('const AUTH_KEY = "lift-journal-auth-test-v1";'));
   assert.ok(source.includes("client.auth.getUser()"));
+  assert.ok(source.includes('import { createSettingsManualSync } from "./stage5-manual-sync.mjs";'));
+  assert.ok(source.includes("embeddedSync.mount()"));
   assert.ok(source.includes('.from("profiles")'));
   assert.match(config, /signupEnabled:\s*false/);
 });
