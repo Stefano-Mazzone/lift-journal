@@ -227,3 +227,33 @@ Stage 4 adds a **standalone loopback-only** \`sync-preview.html\` test page. **T
 ### Release gate
 
 **No code in production \`index.html\`, \`service-worker.js\`, Cloudflare worker or service credentials was changed.** PR #11 must remain an unmerged draft pending explicit owner approval. Before a public launch we still need secure signup/SMTP, retention/deletion/consent, failure and conflict handling, a production UI for signed-in accounts, and true multi-device/offline tests.
+
+
+## Stage 5A — Embedded test accounts in the ACTUAL Lift Journal Settings (draft; owner browser test pending)
+
+**Scope:** The development version of \`index.html\` now contains a clearly marked **Account & Cloud Sync — STAGE 5 TEST** panel in Settings. It is a *real Settings integration*, not an independent account page. The verified Supabase login and private profile display run in new \`stage5-account-panel.mjs\`, sharing the same \`lift-journal-auth-test-v1\` session key with the Stage 4 standalone sync test.
+
+- Test origin: **\`http://127.0.0.1:8006\` or \`http://127.0.0.1:8007\`** only (or localhost). On public hosts, the test login is hidden and no Supabase auth connection is opened by this module.
+- Sign in using a manually created test account. On reload and Settings re-render, \`auth.getSession\` then **server-validated \`auth.getUser\`** checks that identity; the optional display name is read from RLS-restricted \`profiles\`, using text-only insertion into the DOM.
+- Sign out uses Supabase \`scope:"local"\`, and Settings shows that device workouts remain unchanged. Multiple accounts must not be silently linked to browser workouts.
+- The logged-in panel offers a **link to \`./sync-preview.html\`**, which preserves the proven manual comparison, selection, full backup, account-ownership acknowledgement, and confirmation safeguards. **Stage 5A does not yet embed the actual sync controls in Settings**; that is a future milestone.
+- **Signing in/out does not read, write, clear, claim, or transfer \`lift-journal-v1\` workout/food/favorites/program data.** No automatic upload, download or background queue is started; regular offline Lift Journal features continue working without logging in.
+- Only existing authorized **TEST** Supabase accounts may log in. Server-side public sign-up remains OFF. Do not copy private credentials or service keys into \`index.html\`.
+- Added a tiny Settings mount event emitted from the existing \`render()\` to update the account controls after re-render. The existing workout event handlers and native import/backup logic remain otherwise unchanged.
+- Added \`tests/stage5-account-panel.test.mjs\`: 6 isolated checks for app and module syntax, panel markup, mounting, verified-user/guest UI, localhost-only protection, same account session key, and no workout data access. Mocked V8 tests passed, but **real Chrome browser integration tests are still mandatory**.
+
+### Stage 5A first owner browser test
+
+1. Download a **fresh ZIP** of \`feature/lift-journal-2-auth-preview\`. Unlike Stage 4 patches, this test needs the updated **\`index.html\`**, new **\`stage5-account-panel.mjs\`**, and the existing **\`auth-config.js\`** and **\`sync-preview.html\`** together in the *same extracted inner directory*. Do not replace only the JS file.
+2. Stop the old Python server at port 8006 via Ctrl+C and start the **new ZIP folder on the SAME port**: \`python -m http.server 8006 --bind 127.0.0.1\`. Use the **same Chrome profile** so the fictional 2-workout local test remains available.
+3. Open \`http://127.0.0.1:8006/index.html\`; confirm History still shows both fictional workouts BEFORE doing account actions. If missing, stop and inspect the origin, do not re-import into a different origin.
+4. Open **Settings** and inspect the new Account & Cloud Sync panel. If the prior Test User session persists, expect verified email **stef_world@hotmail.com** and profile **Test User**; otherwise sign in with the existing Test User account (never disclose password in chat).
+5. From the Account panel, open **manual workout sync**. It should open \`http://127.0.0.1:8006/sync-preview.html\` on the **same port**, reuse the login, and compare to show 2 local, 5 cloud, 0 safe uploads/downloads, 0 conflicts.
+6. Sign out from **Lift Journal Settings**; refresh History and verify both workouts still exist and all food/favorites remain. Note that sign-out on this port does not sign out of the *separate* port 8007 origin.
+7. Optionally reload Settings and sign back in, then verify the email matches the test account. Do NOT sync or import any real workouts.
+
+### Next Stage 5 milestone (NOT implemented yet)
+
+Move the Stage 4 comparison, safe selection, backup download, and opt-in upload/download workflow **inside the Settings page itself** (rather than a link). Keep all destructive/auto-sync operations disabled pending tests. Later work: offline queue, multiple-device conflict resolution, public signup/SMTP, data deletion, recovery, privacy and production migration.
+
+**Release gate:** PR #11 is a DRAFT. Do NOT merge to main, deploy GitHub Pages, update the production service worker, enable sign-ups, or use real user workout data until separately authorized.
