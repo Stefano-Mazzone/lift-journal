@@ -73,7 +73,7 @@ const anchor = "return { mount, reset: () => { clear(); root = null; ownerId = n
 assert.ok(sourceNoImports.includes(anchor), "test harness must track the exact public widget interface");
 const inspectedSource = sourceNoImports.replace(anchor,
   "return { mount, reset: () => { clear(); root = null; ownerId = null; }, " +
-  "_inspect: {compare, selectDownloads, backup, apply, update, get:()=>({snapshot,busy,backupRequested,ownerId,downloads:[...downloads],uploads:[...uploads]})} };");
+  "_inspect: {compare, selectDownloads, backup, apply, update, setBusy: value=>{busy=value}, get:()=>({snapshot,busy,backupRequested,ownerId,downloads:[...downloads],uploads:[...uploads]})} };");
 
 function harness({ rows = [cloudRow()], origin = "127.0.0.1" } = {}) {
   const cloudRows = clone(rows);
@@ -258,4 +258,16 @@ test("public website host never mounts test controls or touches data", async () 
   await h.widget._inspect.compare();
   assert.equal(h.widget._inspect.get().snapshot, null);
   assert.equal(h.state.writes, 0);
+});
+
+
+test("account switch resets an in-flight busy latch so the next account can compare", async () => {
+  const h = harness();
+  await h.widget._inspect.compare();
+  h.widget._inspect.setBusy(true);
+  h.setUser({ id: "new-test-user", email: "new@example.com" });
+  h.widget.mount();
+  assert.equal(h.widget._inspect.get().busy, false);
+  assert.equal(h.widget._inspect.get().snapshot, null);
+  assert.equal(h.root.nodes["lj5-sync-compare"].disabled, false);
 });
