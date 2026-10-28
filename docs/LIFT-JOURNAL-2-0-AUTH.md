@@ -257,3 +257,38 @@ Stage 4 adds a **standalone loopback-only** \`sync-preview.html\` test page. **T
 Move the Stage 4 comparison, safe selection, backup download, and opt-in upload/download workflow **inside the Settings page itself** (rather than a link). Keep all destructive/auto-sync operations disabled pending tests. Later work: offline queue, multiple-device conflict resolution, public signup/SMTP, data deletion, recovery, privacy and production migration.
 
 **Release gate:** PR #11 is a DRAFT. Do NOT merge to main, deploy GitHub Pages, update the production service worker, enable sign-ups, or use real user workout data until separately authorized.
+
+
+## Stage 5B — Manual two-way sync directly in Lift Journal Settings (DRAFT, owner browser test pending)
+
+Stage 5B extends the authenticated account section of **the development version of \`index.html\`**. When a verified test account is signed in, Settings now displays a native **Manual Workout Sync** panel rather than requiring a second tab. The standalone Stage 4 dashboard remains as an optional fallback.
+
+**Files**
+- \`stage5-manual-sync.mjs\`: new embedded Settings widget and manual flow, importing the already-tested pure \`cloud-sync-core.mjs\` and RLS-scoped \`fetchCloudWorkouts\` from \`cloud-workout-download.mjs\`.
+- \`stage5-account-panel.mjs\`: imports the widget and provides current verified user + public client as dependencies. Existing account sign-in / sign-out never accesses device workouts.
+- \`index.html\`: adds \`lj-stage5-sync-root\` inside the signed-in account section, a small responsive display style, and retains an optional fallback link to \`sync-preview.html\`.
+- \`tests/stage5-manual-sync.test.mjs\`: 7 mocked integration tests for mount-only behavior, safe compare, backup/ownership gates, successful non-destructive cloud-to-device download, upload-only INSERT, stale local state, account switching/rerendering and public-host denial.
+- \`tests/stage5-account-panel.test.mjs\`: updated 6 existing account-integration tests for the new widget module import. Both suites passed isolated V8 tests. **Actual Chrome test pending.**
+
+**Functional scope**
+- The user explicitly chooses **Compare this device with my cloud**. It shows local and cloud counts, eligible uploads/downloads, already-synced rows, unsupported test records, and conflicts/possible duplicates.
+- Completed compatible sessions may be individually selected; there is a **Select eligible cloud workouts** accessibility shortcut to avoid the old disabled-checkbox issue. Limit 25 changes per operation.
+- Requires **Download full local safety backup**, independent acknowledgement that the file is saved, independent acknowledgement that this device's fictional workouts belong to the current account, and a confirmation describing exact upload/download counts.
+- On consent it validates the current server-side \`auth.getUser()\`, checks the exact original localStorage snapshot, re-fetches full RLS-scoped cloud data, and re-runs \`planSelectedSync\` before writing anything.
+- Cloud writes are **plain INSERT only**. Existing cloud IDs are never updated/deleted. Downloads add only verified missing sessions into cloned local data and preserve nutrition, program, favorites, schedule, running and existing workout records.
+- **Critical in-memory safeguard:** unlike Stage 4's separate-page dashboard, a download in the same \`index.html\` page must reload Lift Journal immediately following a successful localStorage write; otherwise its pre-sync \`data\` object could overwrite downloaded sessions on the next save. The confirmation warns about the reload. Upload-only operations report success without reloading.
+- If the user switches accounts, leaves Settings, or the Settings DOM is rerendered during an operation, the pending compare/selection is invalidated or further data writes are refused. Local changes since comparison abort sync.
+- Only available at \`127.0.0.1\` and \`localhost\`. No public signup; no background/automatic sync or offline queue; no cloud edit/delete/overwrite; not a full multi-device conflict resolution system.
+- Data downloaded to the test device is currently owned by browser local storage, **not protected by an enforced per-account local data namespace**. Explicit account-ownership confirmation is required. Do not use real multi-user devices until local-account isolation/ownership controls are designed and verified.
+
+**Owner browser validation (one step at a time)**
+1. Obtain a **new ZIP** of branch \`feature/lift-journal-2-auth-preview\`. Check the extracted inner folder has \`index.html\`, \`stage5-account-panel.mjs\`, \`stage5-manual-sync.mjs\`, \`auth-config.js\`, \`cloud-sync-core.mjs\`, \`cloud-workout-download.mjs\`, and \`cloud-safe-merge.mjs\`.
+2. Stop old Python server on port **8006** with Ctrl+C. From that **new folder** start the same port: \`python -m http.server 8006 --bind 127.0.0.1\`.
+3. Open \`http://127.0.0.1:8006/index.html\` in the same Chrome profile. Check History retains both fictional workouts (October 24 and 25, 2026) before any further action.
+4. In Settings → Account & Cloud Sync, sign in to existing Test User \`stef_world@hotmail.com\` if still signed out from Stage 5A. Verify email/profile, then see **Manual Workout Sync** panel *inside Settings*, below account details.
+5. Click **Compare this device with my cloud**, expect 2 local, 5 cloud, 0 eligible uploads, 0 eligible downloads, 0 conflicts. Neither device nor cloud should change. Send screenshot of this embedded UI.
+6. For an actual embedded-download test, prepare a third disposable browser origin (e.g. port **8008**) from the **same corrected folder**, restore the fictional one-workout destination backup there, then sign in and compare (1 local, 5 cloud, 1 safe download). Select only the missing October 25 workout. Download and check the full safety backup; check both acknowledgements, approve the preview of 0 uploads/1 download. On success **Lift Journal must reload automatically**, then History must show both records. Recompare and verify 0 safe downloads/conflicts. Do not use actual user data.
+7. Test sign-out while a comparison is shown, switch to another test account and ensure the previous account's cloud list and selected workouts aren't retained. Verify signing out doesn't delete locally saved workout data. Do not switch devices or accounts with real data yet.
+8. Stop test server as desired; browser storage under these origins persists unless Chrome site data is cleared.
+
+**Release gate**: Keep PR #11 a DRAFT and unmerged. The public GitHub Pages app and service worker must not change. Additional release work: RLS/account lifecycle/security audit, privacy policies and account data deletion/export, server-side signup/SMTP gating, secure on-device per-account data isolation, offline queue/retry and multi-device edit conflict management.
