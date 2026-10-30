@@ -46,6 +46,7 @@ function accountHarness(hostname = "127.0.0.1") {
     .replace(/renderAccount\(\);\s*void initialize\(\);\s*$/, "");
   const api = new Function("window", "document", "location",
     "const createSettingsManualSync = () => ({mount(){},reset(){}});\n" +
+    "const createSettingsVaultPreview = () => ({mount(){},reset(){}});\n" +
     cleaned + "\nreturn {" +
     "renderAccount,setStatus,getState:state," +
     "setVerifiedUser:(user,name)=>{currentUser=user;displayName=name;initialized=true;}," +
