@@ -40,3 +40,22 @@ A new optional Stage 6B panel is available only on localhost in Settings under t
 **Code:** stage6b-vault-preview.mjs is the Settings UI; stage6b-vault-preview-guard.mjs implements owner, snapshot and stale-state checks. Tests are in tests/stage6b-vault-preview-guard.test.mjs (nine guards and one static integration check). Nine pure guard cases passed in an isolated V8 harness, and the original nine encrypted-vault core tests passed under Node. The complete Stage 6B2 browser integration still requires owner testing.
 
 **Still required before full account privacy:** authenticated startup gating before reading the legacy key, complete encrypted write-through for all app sections, logout memory lock and cross-tab isolation, no plaintext fallback, backup/restore and lost-password plan, stable offline persistence and multi-device sync integration. Keep PR #11 draft and unmerged, production unchanged, registration and automatic sync disabled, and use fictional data only.
+
+## Stage 6B3 — Safe recovery from an unusable test-copy passphrase (OWNER CHROME TEST PENDING)
+
+An owner reported a vault created/verified successfully but subsequent manual unlock failed twice. The initial create flow internally runs `openVault` with the initial passphrase before saving, so the file *was* decryptable at creation. The cause of later failure has **not been established**: different typed text, Chrome password manager generated/autofilled text, or a changed ciphertext are all possibilities. Never request or record the owner's passphrase.
+
+The new Stage 6B3 UI adds a **Cannot unlock? Prepare a fresh encrypted test copy** control for the verified local history owner. It does not delete/reset the original ciphertext or claim to recover the unknown original passphrase. It creates a separate *add-only* encrypted recovery copy from the still-accessible fictional plaintext browser history. Recovery slots are `lift-journal-private-v1:<user-id>:recovery-1`, `:recovery-2`, `:recovery-3`, while the original remains under the original key. `latestVault()` picks the latest slot when testing unlock/export. After three retries, fail closed; do not overwrite previous copies.
+
+**Safe first Chrome test:**
+1. Download a fresh ZIP of the same draft branch and extract it into a new Stage 6B3 test folder. Keep all previous folders and downloaded JSON backups.
+2. Stop the old Python server; run the new inner folder on the same port `8006` and identical Chrome profile. Confirm 2 workouts and 2 favorites in the normal app. The old encrypted preview will still exist.
+3. Sign in as original Test User, navigate to Settings -> Stage 6B. Under existing encrypted preview choose **Cannot unlock? Prepare a fresh encrypted test copy**.
+4. Click **Download original encrypted copy (.json)**. Verify it exists in Downloads. This preserves the locked copy independently.
+5. Click **Download fresh full device safety backup (.json)**. Verify it exists; check the ownership/backup acknowledgement ONLY after both are safely downloaded.
+6. Enter a **NEW** passphrase (at least 12 characters) twice and use **Show both new passphrase fields** to verify they match; keep it private and stored securely. Chrome autofill/password generation can change what was typed; verify visually on your own screen, then hide before screenshots.
+7. Click **Create fresh encrypted test copy (keep originals)** and verify the confirmation details: verified test account, 2 fictional workouts and 2 favorites. The UI re-checks server identity, exact local history and owner link, all existing vault slots, and performs encrypted decrypt verification before any *new-slot* write.
+8. Test **Test Unlocking Encrypted Copy** with the new passphrase. Expected: unlocked 2 workouts + 2 favorites. If it fails, stop and report; do not clear storage or share any passphrases.
+9. Download the new encrypted backup from the preview. Ensure 2 workouts and 2 favorites remain in History/Movements. Production remains unchanged.
+
+**Constraints:** This is NOT an old encrypted-file decryption bypass, password reset, cloud recovery, real account isolation or production-safe migration. Normal `lift-journal-v1` remains plaintext; no copy is deleted, migrated or synchronized. Tests: `tests/stage6b-vault-recovery.test.mjs` includes 11 Node test cases. Ten pure owner/snapshot/storage scenarios were checked in an isolated V8 harness. Browser end-to-end testing remains pending.
