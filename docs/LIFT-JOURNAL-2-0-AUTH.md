@@ -292,3 +292,43 @@ Stage 5B extends the authenticated account section of **the development version 
 8. Stop test server as desired; browser storage under these origins persists unless Chrome site data is cleared.
 
 **Release gate**: Keep PR #11 a DRAFT and unmerged. The public GitHub Pages app and service worker must not change. Additional release work: RLS/account lifecycle/security audit, privacy policies and account data deletion/export, server-side signup/SMTP gating, secure on-device per-account data isolation, offline queue/retry and multi-device edit conflict management.
+
+
+## Stage 6A — Persistent device-to-test-account sync ownership guard (DRAFT; OWNER CHROME TEST PENDING)
+
+**Reason:** The Stage 5B app retains the existing shared browser-storage key \`lift-journal-v1\`. A Supabase login alone does not identify who originally recorded those local workouts. Previously, an account switch could cause someone to upload the browser's existing workouts into the WRONG cloud account after clicking the regular safety acknowledgements. RLS alone does not prevent that voluntary misattribution.
+
+**New Stage 6A behavior**
+- Adds \`stage6-device-owner.mjs\`, with a strict versioned ownership marker \`lift-journal-sync-device-owner-v1\` stored separately from \`lift-journal-v1\`. Marker includes the **verified Supabase user ID**, time first linked, last reviewed time and state \`active\` or \`review-required\`. No email/password or workout body is stored in the marker.
+- Every origin starts **UNCLAIMED**, including older test installations on ports 8006, 8007 and 8008. **Manual sync is DISABLED until the current signed-in test account explicitly links the local history.**
+- In Settings → Account & Cloud Sync → **Device ownership for cloud sync**, linking requires: server-verified existing Test User login; the full native JSON **safety backup requested** and saved; explicit checkbox that these fictional local workouts belong to the signed-in test account; final confirmation showing account email and number of workouts; rechecking both the exact local \`lift-journal-v1\` bytes and ownership marker for changes before persisting the link. Linking saves only the small marker, never uploads/changes any workout, favorites, nutrition, schedule, or program.
+- **Different account:** owner marker persists through logout and page reload. Logging in to another account on the same origin shows **SYNC LOCKED**. Ownership cannot be reassigned through the app. Sign in to the original account or use a different browser profile/origin. The app does not silently import or sync that shared history.
+- **Backup import:** the existing destructive native "Import Backup" action now places an active ownership marker into \`review-required\` status **BEFORE** replacing local data. Sync remains locked until the **same verified account** downloads a new safety backup and expressly reapproves. A damaged marker or inability to write the suspension blocks the import. Canceled imports do not suspend ownership. If the actual app save later fails, the marker conservatively remains suspended, without deleting workout data.
+- **Damaged marker:** invalid JSON, unexpected version or missing fields always fail closed: no silent reset, rebind, compare or sync. This is a safety guard, not an encrypted or tamper-proof device identifier.
+- **Both sync entrypoints protected:** \`stage5-manual-sync.mjs\` in app Settings and the standalone fallback \`cloud-sync-preview.mjs\` import the same ownership guard. Comparison is disabled if unclaimed/wrong account/review-required/damaged. Ownership is rechecked at manual apply, revalidation, each cloud INSERT, and before any local history save. Changes in another tab invalidate pending work.
+- **No automatic/background uploads, downloads, new user registrations or cloud deletes/updates.** The existing data model and cloud RLS remain unchanged.
+
+**What this does NOT protect:** All sessions/nutrition/favorites still live under one same-origin \`lift-journal-v1\` localStorage key. Signing out **does not hide or encrypt** them; other people using the same browser profile can still open Lift Journal and view/edit local data, manually export backups, or use developer tools to alter localStorage. A locally editable marker cannot serve as a true security boundary. Stage 6A reduces accidental cross-account cloud attribution and is **not yet suitable for actual multi-user shared devices**. Stage 6B must design real per-account local storage compartments or authenticated encryption, protect guest/legacy migration and owner switching, and verify recovery without data loss before production rollout.
+
+**Files/tests**
+- \`stage6-device-owner.mjs\` — pure owner record parsing, fail-closed read, one-owner linking and import suspension.
+- \`tests/stage6-device-owner.test.mjs\` — 12 tests for unclaimed, persistence, wrong account, stale bytes, races, review-required and corruption.
+- \`tests/stage6-owner-ui.test.mjs\` — 6 mocked UI/import tests for backup-gated linking, wrong-account lock and import suspension.
+- \`stage5-account-panel.mjs\`, \`index.html\` — explicit owner-link UI, native import lock, account switch refresh.
+- \`stage5-manual-sync.mjs\` + \`cloud-sync-preview.mjs\` — both manual sync flows fail closed without the same matching active owner.
+- \`tests/stage5-manual-sync.test.mjs\` — expanded to 12 mocked tests, including cross-account and suspended marker refusal.
+- \`tests/cloud-sync-preview-controls.test.mjs\` — expanded to 4 tests including fallback lock.
+- \`tests/stage5-account-panel.test.mjs\` — retains 6 account/settings regression tests.
+- 40 individual source/fixture-based test cases passed in isolated JavaScript/V8 harnesses as of Stage 6A. These are mocks and do not substitute for owner Chrome tests.
+
+**Owner first browser test — one step at a time**
+1. Download fresh branch ZIP \`feature/lift-journal-2-auth-preview\`; extract a **new** inner directory with \`index.html\`, \`stage5-account-panel.mjs\`, \`stage5-manual-sync.mjs\`, and new \`stage6-device-owner.mjs\`. Do not patch a single JS file.
+2. Stop previous Python server at **8006** and restart it from the new directory with \`python -m http.server 8006 --bind 127.0.0.1\`. Use the same Chrome profile and exact origin so the 2 fictional workouts persist.
+3. Verify History shows both fictional sessions **before linking**. At Settings → Account & Cloud Sync, sign in as **Test User \`stef_world@hotmail.com\`**. Expect a **Device ownership for cloud sync** panel saying **SYNC LOCKED** and a disabled **Compare** button.
+4. Download **full device safety backup**, confirm file exists in Downloads, check ownership acknowledgement, then click **Link this device history to my test account**. The confirmation must show the Test User email and 2 fictional workouts; agree. Linking must NOT alter workout count, favorites, nutrition, or cloud count.
+5. With device linked, Compare should work. Expect 2 local workouts, 5 cloud rows, 0 eligible uploads/downloads and 0 conflicts. Any running uploads/downloads still require their separate safety backup and consent.
+6. Sign out in Settings. Reopen History and verify both workouts remain. Sign into **Admin test account** on **the SAME port 8006**, without changing Chrome profile. Expect **SYNC LOCKED / linked to another account** and the Compare/sync controls DISABLED. Do not upload anything to Admin; Admin cloud data should not be read by the sync panel. The 2 local workouts may remain visible — known Stage 6A limitation.
+7. Sign out of Admin and sign in again as Test User; the original owner guard should permit Compare without new linking.
+8. Optional later isolated test: create another disposable origin or keep another verified test backup, import a native backup while bound, verify \`review-required\` and sync locked until same owner performs a fresh backup+reapproval. Do not do this on production or real data.
+
+**Release gate:** Keep PR #11 a DRAFT; no merge, no GitHub Pages deploy or public sign-up. Stage 6A is a safety test with fictional data only; further shared-device privacy, account separation, conflict handling, offline reliability, policies, account deletion and recovery are required.
