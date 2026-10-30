@@ -15,7 +15,7 @@ if ([start, end, buttonStart, buttonEnd].some(n => n < 0) || end <= start || but
 const updateFunction = source.slice(start, end);
 const selectButtonHandler = source.slice(buttonStart, buttonEnd);
 
-function harness() {
+function harness({ linked = true } = {}) {
   const existing = "lj-session:device-only-workout-001";
   const missing = "lj-session:stage1-fixture-workout-001";
   const uploadEligible = { dataset: { eligible: "true", workoutId: existing }, disabled: false, checked: false };
@@ -40,7 +40,7 @@ function harness() {
 
   const controls = new Function(
     "elements", "selectedUploads", "selectedDownloads", "MAX_CHANGES",
-    "selectMissingCloudButton", "announce",
+    "selectMissingCloudButton", "announce", "ownerLinked",
     'let busy = true, snapshot = { ownerId: "test-account", ' +
     'plan: { download: [{ id: "lj-session:stage1-fixture-workout-001", status: "eligible" }, ' +
     '{ id: "lj-session:device-only-workout-001", status: "already" }] } }, ' +
@@ -48,7 +48,7 @@ function harness() {
     updateFunction + "\n" + selectButtonHandler +
     "\nreturn { update, setBusy: v => busy = v, " +
     "setBackupRequested: v => backupRequested = v };"
-  )(elements, selectedUploads, selectedDownloads, 25, selectedCloudButton, announce);
+  )(elements, selectedUploads, selectedDownloads, 25, selectedCloudButton, announce, () => linked);
   return {
     controls, elements, selectedUploads, selectedDownloads,
     uploadEligible, downloadEligible, downloadBlocked, selectedCloudButton, messages
@@ -99,4 +99,21 @@ test("confirmation checkboxes and final sync button unlock in the right order", 
   h.elements.ownerCheck.checked = true;
   h.controls.update();
   assert.equal(h.elements.apply.disabled, false, "both consent steps and a selection unlock sync");
+});
+
+
+test("standalone fallback stays locked when this browser isn't linked to current account", () => {
+  const h = harness({ linked: false });
+  h.controls.setBusy(false);
+  h.controls.update();
+  assert.equal(h.elements.compare.disabled, true);
+  assert.equal(h.uploadEligible.disabled, true);
+  assert.equal(h.downloadEligible.disabled, true);
+  assert.equal(h.selectedCloudButton.disabled, true);
+  h.selectedUploads.add("lj-session:device-only-workout-001");
+  h.controls.setBackupRequested(true);
+  h.elements.backupCheck.checked = true;
+  h.elements.ownerCheck.checked = true;
+  h.controls.update();
+  assert.equal(h.elements.apply.disabled, true, "ownership gate cannot be bypassed by consent boxes");
 });
