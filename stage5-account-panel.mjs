@@ -101,6 +101,13 @@ function renderAccount() {
   }
   embeddedSync.mount();
   vaultPreview.mount();
+  const privateLink = $("lj6c-private-link");
+  if (privateLink) {
+    // The link is not a security boundary; the destination independently
+    // verifies Supabase identity, owner marker and encryption passphrase.
+    privateLink.hidden = !authenticated ||
+      deviceOwnerStatus(localStorage, currentUser.id).status !== "linked";
+  }
 }
 
 function isAccountPanel(el) {
