@@ -57,12 +57,12 @@ function harness() {
     .replace(/renderAccount\(\);\s*void initialize\(\);\s*$/, "");
   const api = new Function(
     "window","document","location","localStorage","URL","Blob",
-    "createSettingsManualSync","makeSafetyBackup","DEVICE_OWNER_KEY",
+    "createSettingsManualSync","createSettingsVaultPreview","makeSafetyBackup","DEVICE_OWNER_KEY",
     "DEVICE_DATA_KEY","deviceOwnerStatus","bindDeviceOwner","mockClient",
     simpleSrc +
     "\nreturn { renderAccount,setUser:v=>{currentUser=v;initialized=true;client=mockClient;} };"
   )(win, doc, {hostname:"127.0.0.1"}, storage, url, Blob,
-    () => widget, makeSafetyBackup, DEVICE_OWNER_KEY, DEVICE_DATA_KEY,
+    () => widget, () => widget, makeSafetyBackup, DEVICE_OWNER_KEY, DEVICE_DATA_KEY,
     deviceOwnerStatus, bindDeviceOwner,
     {auth:{async getUser(){return {data:{user},error:null}}}});
   const click = async id => {
