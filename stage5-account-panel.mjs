@@ -1,4 +1,5 @@
 import { createSettingsManualSync } from "./stage5-manual-sync.mjs";
+import { createSettingsVaultPreview } from "./stage6b-vault-preview.mjs";
 import { makeSafetyBackup } from "./cloud-sync-core.mjs";
 import {
   DEVICE_OWNER_KEY, DEVICE_DATA_KEY, deviceOwnerStatus, bindDeviceOwner
@@ -28,6 +29,10 @@ let statusMessage = testOrigin ? "Checking your existing test account…" :
 let statusKind = "info";
 const state = () => ({ currentUser, displayName, busy, initialized, statusMessage, statusKind, testOrigin });
 const embeddedSync = createSettingsManualSync({
+  getClient: () => client,
+  getUser: () => currentUser
+});
+const vaultPreview = createSettingsVaultPreview({
   getClient: () => client,
   getUser: () => currentUser
 });
@@ -95,6 +100,7 @@ function renderAccount() {
       "Reapprove this account for sync" : "Link this device history to my test account";
   }
   embeddedSync.mount();
+  vaultPreview.mount();
 }
 
 function isAccountPanel(el) {
@@ -110,6 +116,7 @@ document.addEventListener("lift-journal:settings-mounted", () => {
 document.addEventListener("lift-journal:device-owner-review", () => {
   ownerBackupSnapshot = null;
   embeddedSync.reset();
+  vaultPreview.reset();
   renderAccount();
 });
 
@@ -198,6 +205,7 @@ document.addEventListener("click", async event => {
     });
     ownerBackupSnapshot = null;
     embeddedSync.reset();
+  vaultPreview.reset();
     setStatus("Device sync ownership saved for this test account. No workouts were uploaded.", "success");
   } catch (error) {
     ownerBackupSnapshot = null;
@@ -245,6 +253,7 @@ document.addEventListener("click", async event => {
   busy = true;
   ownerBackupSnapshot = null;
   embeddedSync.reset();
+  vaultPreview.reset();
   setStatus("Signing out of this test account…");
   try {
     const { error } = await client.auth.signOut({ scope: "local" });
@@ -283,6 +292,7 @@ async function refreshAccount() {
     if (currentUser?.id !== user.id) {
       ownerBackupSnapshot = null;
       embeddedSync.reset();
+  vaultPreview.reset();
     }
     currentUser = user;
     displayName = "";
@@ -300,6 +310,7 @@ async function refreshAccount() {
     if (generation !== refreshGeneration) return;
     ownerBackupSnapshot = null;
     embeddedSync.reset();
+  vaultPreview.reset();
     currentUser = null;
     displayName = "";
     setStatus("Account could not be verified: " + (error?.message || "Network unavailable") +
@@ -313,8 +324,10 @@ window.addEventListener("storage", event => {
   if (event.key === DEVICE_OWNER_KEY || event.key === DEVICE_DATA_KEY || event.key === null) {
     ownerBackupSnapshot = null;
     embeddedSync.reset();
+  vaultPreview.reset();
     renderAccount();
   }
+  if (event.key?.startsWith("lift-journal-private-v1:")) vaultPreview.mount();
   if (event.key === AUTH_KEY || event.key === null) void refreshAccount();
 });
 document.addEventListener("visibilitychange", () => {
