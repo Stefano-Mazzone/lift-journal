@@ -530,6 +530,15 @@ h2{letter-spacing:-.02em;font-weight:760}.sub{font-size:14px;line-height:1.55}.e
 .lj5-sync-confirm .btn{width:100%}
 .lj5-sync-box button:disabled,.lj5-sync-box input:disabled{cursor:not-allowed;opacity:.48}
 @media(max-width:540px){.lj5-sync-columns{grid-template-columns:1fr}.lj5-sync-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Stage 6A — sync ownership lock, localhost development only. */
+.lj-device-owner-panel{border:1px solid #43685c;background:#142a2e;border-radius:13px;padding:14px;margin:13px 0}
+.lj-device-owner-panel h3{font-size:15px;margin:0 0 8px}
+.lj-device-owner-panel .lj-owner-consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5}
+.lj-device-owner-panel .lj-owner-consent input{flex:0 0 19px;width:19px;height:19px;margin-top:2px;accent-color:var(--accent)}
+.lj-device-owner-panel .stack button{width:100%}
+.lj-device-owner-panel button:disabled{opacity:.5;cursor:not-allowed}
+.lj-device-owner-panel[hidden],.lj-device-owner-panel [hidden]{display:none!important}
 </style></head><body><div id="storage-warning" class="storage-warning" role="alert" hidden></div><main class="shell" id="app"></main><div class="nav-dock" id="nav-dock"><button type="button" class="nav-arrow is-hidden" id="nav-prev" aria-label="Scroll to previous menu tabs"><span aria-hidden="true">‹</span><small>Back</small></button><div class="nav-scroll" id="nav-scroll"><nav class="tabs" id="nav" aria-label="Lift Journal sections"><button data-tab="home">⌂<br>Plan</button><button data-tab="train">▣<br>Train</button><button data-tab="coach">✧<br>Coach</button><button data-tab="running">♢<br>Running</button><button data-tab="feedback">✉<br>Feedback</button><button data-tab="history">◷<br>History</button><button data-tab="movements">↗<br>Movements</button><button data-tab="calories">◉<br>Calories</button><button data-tab="gyms">⌖<br>Gyms</button><button data-tab="settings">⚙<br>Settings</button></nav></div><button type="button" class="nav-arrow" id="nav-next" aria-label="Scroll to more menu tabs"><span aria-hidden="true">›</span><small>More</small></button></div><script src="./coach-config.js"></script><script>
 (()=>{'use strict';
 const KEY='lift-journal-v1',names=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -569,6 +578,26 @@ function updateStorageWarning(){
  const msg=initialLoadError||storageSaveError;
  box.hidden=!msg;
  box.textContent=msg||'';
+}
+
+function suspendSyncOwnerBeforeNativeImport(){
+ // Import Backup REPLACES every local section. Never leave the previous
+ // account's ownership approval active for newly imported workouts.
+ const ownershipKey='lift-journal-sync-device-owner-v1';
+ const raw=localStorage.getItem(ownershipKey);
+ if(raw===null)return;
+ let previous;
+ try{previous=JSON.parse(raw)}catch{
+  throw Error('Device sync ownership is damaged. Import blocked until safe recovery.')}
+ if(!previous||previous.version!==1||
+  typeof previous.userId!=='string'||!/^[a-zA-Z0-9_-]{1,160}$/.test(previous.userId)||
+  !['active','review-required'].includes(previous.state)||
+  typeof previous.createdAt!=='string'||Number.isNaN(Date.parse(previous.createdAt))||
+  typeof previous.updatedAt!=='string'||Number.isNaN(Date.parse(previous.updatedAt))){
+  throw Error('Device sync ownership is invalid. Import blocked to avoid cross-account mixing.')}
+ const locked=JSON.stringify({...previous,state:'review-required',updatedAt:new Date().toISOString()});
+ localStorage.setItem(ownershipKey,locked);
+ if(localStorage.getItem(ownershipKey)!==locked)throw Error('Could not lock cloud sync before importing.');
 }
 function save(){
  if(initialLoadError){updateStorageWarning();return false}
@@ -3953,6 +3982,16 @@ function stage5AccountPanel(){return '<section class="card lj-stage5-panel" id="
  '<div id="lj-account-signed" class="stack" hidden>'+
  '<p class="note">Verified account: <strong id="lj-account-email-display"></strong></p>'+
  '<p class="note">Profile: <strong id="lj-account-name-display"></strong></p>'+
+ '<div id="lj-device-owner-panel" class="lj-device-owner-panel" hidden>'+
+ '<h3>Device ownership for cloud sync</h3>'+
+ '<p class="lj-stage5-status" id="lj-device-owner-message" role="status" aria-live="polite">Checking device sync ownership…</p>'+
+ '<div class="stack" id="lj-device-owner-actions" hidden>'+
+ '<button type="button" class="btn secondary" id="lj-owner-backup">Download full device safety backup (.json)</button>'+
+ '<label class="lj-owner-consent"><input id="lj-owner-ack" type="checkbox" disabled><span>I saved the backup, these fictional device workouts are mine, and I want to link them to my verified test account.</span></label>'+
+ '<button type="button" class="btn" id="lj-owner-claim" disabled>Link this device history to my test account</button>'+
+ '</div>'+
+ '<p class="note">This lock prevents accidental cross-account sync, NOT viewing local workouts on a shared browser. To protect privacy, use separate browser profiles. The link cannot be reassigned to a different account here.</p>'+
+ '</div>'+
  '<div id="lj-stage5-sync-root" aria-label="Manual workout synchronization controls"></div>'+
  '<a id="lj-account-open-sync" class="btn secondary lj-stage5-sync-link" href="./sync-preview.html" target="_blank" rel="noopener" hidden>Open standalone manual sync (fallback)</a>'+
  '<button type="button" id="lj-account-signout" class="btn secondary">Sign out of test account</button>'+
@@ -4152,10 +4191,14 @@ document.addEventListener('change',async e=>{
    'This device currently has '+currentCount+' workout'+(currentCount===1?'':'s')+'.\n\n'+
    'Importing REPLACES the existing local workouts, favorites, program and food records. It does not merge them. Export a safety backup from Settings first if you want to keep your current data.\n\nImport this backup now?';
   if(!confirm(notice))return;
+  // Fail closed: if the existing owner cannot be locked for re-review,
+  // abort this destructive import without touching the stored workouts.
+  suspendSyncOwnerBeforeNativeImport();
   const prior=data,priorIssue=initialLoadError;
   data=restored;initialLoadError=null;
   if(!save()){data=prior;initialLoadError=priorIssue;updateStorageWarning();return}
   editing=null;selectedDate=null;selectedSlot=null;tab='history';render();
+  document.dispatchEvent(new Event('lift-journal:device-owner-review'));
   toast('Backup restored: '+incomingCount+' workouts');
  }catch(err){alert('Cannot import backup: '+(err?.message||String(err))+'. Your saved data was not replaced.')}
  finally{e.target.value=''}
