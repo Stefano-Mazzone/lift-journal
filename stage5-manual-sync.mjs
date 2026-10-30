@@ -4,6 +4,7 @@
 // Reuses Stage 4's production-compatible session validation and RLS cloud reads.
 import { fetchCloudWorkouts } from "./cloud-workout-download.mjs";
 import { buildSyncPlan, makeSafetyBackup, planSelectedSync } from "./cloud-sync-core.mjs";
+import { isDeviceOwnedBy } from "./stage6-device-owner.mjs";
 
 const KEY = "lift-journal-v1";
 const MAX_DATA_BYTES = 20 * 1024 * 1024;
@@ -36,6 +37,9 @@ export function createSettingsManualSync({ getClient, getUser }) {
   const isMounted = () => localTestHost && !!root?.isConnected &&
     document.getElementById("lj-stage5-sync-root") === root &&
     !!getClient() && !!ownerId && getUser()?.id === ownerId;
+  // Ownership is checked live before every fetch, upload and local save.
+  // The same browser history cannot be silently synced under a new account.
+  const isOwned = () => isMounted() && isDeviceOwnedBy(localStorage, ownerId);
 
   function message(content, kind = "info") {
     const status = el("lj5-sync-status");
@@ -71,12 +75,12 @@ export function createSettingsManualSync({ getClient, getUser }) {
     const count = uploads.size + downloads.size;
     const eligibleDownloads = snapshot?.plan.download.filter(x => x.status === "eligible") || [];
     for (const [id, disabled] of [
-      ["lj5-sync-compare", busy || !isMounted()],
-      ["lj5-sync-select-down", busy || !snapshot || !isMounted() || eligibleDownloads.length === 0],
-      ["lj5-sync-backup", busy || !snapshot || !isMounted()],
-      ["lj5-sync-backup-ack", busy || !snapshot || !backupRequested || !isMounted()],
-      ["lj5-sync-owner-ack", busy || !snapshot || !isMounted()],
-      ["lj5-sync-apply", busy || !snapshot || !isMounted() || !backupRequested ||
+      ["lj5-sync-compare", busy || !isOwned()],
+      ["lj5-sync-select-down", busy || !snapshot || !isOwned() || eligibleDownloads.length === 0],
+      ["lj5-sync-backup", busy || !snapshot || !isOwned()],
+      ["lj5-sync-backup-ack", busy || !snapshot || !backupRequested || !isOwned()],
+      ["lj5-sync-owner-ack", busy || !snapshot || !isOwned()],
+      ["lj5-sync-apply", busy || !snapshot || !isOwned() || !backupRequested ||
         !el("lj5-sync-backup-ack")?.checked || !el("lj5-sync-owner-ack")?.checked ||
         count === 0 || count > MAX_CHANGES]
     ]) {
@@ -93,7 +97,7 @@ export function createSettingsManualSync({ getClient, getUser }) {
     for (const box of root.querySelectorAll('input[data-sync-id]')) {
       const set = box.dataset.syncDirection === "upload" ? uploads : downloads;
       box.checked = set.has(box.dataset.syncId);
-      box.disabled = busy || !snapshot || !isMounted() || box.dataset.eligible !== "true";
+      box.disabled = busy || !snapshot || !isOwned() || box.dataset.eligible !== "true";
     }
   }
 
@@ -149,13 +153,13 @@ export function createSettingsManualSync({ getClient, getUser }) {
   }
 
   async function verified(id) {
-    if (!isMounted() || id !== ownerId) return false;
+    if (!isOwned() || id !== ownerId) return false;
     const { data: { user }, error } = await getClient().auth.getUser();
-    return !error && isMounted() && user?.id === id;
+    return !error && isOwned() && user?.id === id;
   }
 
   async function compare() {
-    if (busy || !isMounted()) return;
+    if (busy || !isOwned()) return;
     clear();
     const thisRequest = ++requestId;
     const id = ownerId, currentRoot = root;
@@ -167,9 +171,9 @@ export function createSettingsManualSync({ getClient, getUser }) {
       const raw = readRaw();
       const local = JSON.parse(raw);
       const cloud = await fetchCloudWorkouts(getClient(), id, () =>
-        thisRequest === requestId && root === currentRoot && isMounted()
+        thisRequest === requestId && root === currentRoot && isOwned()
       );
-      if (thisRequest !== requestId || !isMounted() || currentRoot !== root) return;
+      if (thisRequest !== requestId || !isOwned() || currentRoot !== root) return;
       if (readRaw() !== raw) throw new Error("Local workout history changed. Compare again.");
       const plan = buildSyncPlan(local, cloud);
       snapshot = { raw, local, cloud, plan, ownerId: id, root: currentRoot };
@@ -191,7 +195,7 @@ export function createSettingsManualSync({ getClient, getUser }) {
   }
 
   function toggleSelected(box) {
-    if (busy || !snapshot || !isMounted()) return;
+    if (busy || !snapshot || !isOwned()) return;
     const direction = box.dataset.syncDirection;
     const id = box.dataset.syncId;
     const choices = direction === "upload" ? uploads : downloads;
@@ -202,7 +206,7 @@ export function createSettingsManualSync({ getClient, getUser }) {
   }
 
   function selectDownloads() {
-    if (busy || !snapshot || !isMounted()) return;
+    if (busy || !snapshot || !isOwned()) return;
     const eligible = snapshot.plan.download.filter(row => row.status === "eligible");
     const newIds = eligible.filter(row => !downloads.has(row.id));
     if (newIds.length + downloads.size + uploads.size > MAX_CHANGES) {
@@ -216,7 +220,7 @@ export function createSettingsManualSync({ getClient, getUser }) {
   }
 
   function backup() {
-    if (busy || !snapshot || !isMounted() || snapshot.ownerId !== ownerId || snapshot.root !== root) return;
+    if (busy || !snapshot || !isOwned() || snapshot.ownerId !== ownerId || snapshot.root !== root) return;
     try {
       if (readRaw() !== snapshot.raw) throw new Error("Local history changed. Compare again.");
       const now = new Date().toISOString();
@@ -231,7 +235,7 @@ export function createSettingsManualSync({ getClient, getUser }) {
   }
 
   async function apply() {
-    if (busy || !snapshot || !isMounted() || !backupRequested ||
+    if (busy || !snapshot || !isOwned() || !backupRequested ||
       !el("lj5-sync-backup-ack")?.checked || !el("lj5-sync-owner-ack")?.checked) return;
     const up = [...uploads], down = [...downloads];
     if (!up.length && !down.length || up.length + down.length > MAX_CHANGES) return;
@@ -255,9 +259,9 @@ export function createSettingsManualSync({ getClient, getUser }) {
       if (!await verified(id)) throw new Error("Account changed or could not be verified.");
       if (readRaw() !== prior.raw) throw new Error("Local workouts changed after comparison.");
       const latestCloud = await fetchCloudWorkouts(getClient(), id, () =>
-        thisRequest === requestId && root === currentRoot && isMounted()
+        thisRequest === requestId && root === currentRoot && isOwned()
       );
-      if (thisRequest !== requestId || !isMounted() || currentRoot !== root) return;
+      if (thisRequest !== requestId || !isOwned() || currentRoot !== root) return;
       if (readRaw() !== prior.raw) throw new Error("Device workouts changed during cloud refresh.");
       // Rebuild the plan from fresh cloud records. Refuse stale/invalid picks.
       const planned = planSelectedSync(prior.local, latestCloud, up, down);
@@ -385,7 +389,9 @@ export function createSettingsManualSync({ getClient, getUser }) {
     ownerId = nextOwner;
     root.innerHTML = markup(); // Static trusted markup; workout names use textContent only.
     wire(root);
-    message("Press Compare to see missing workouts for this verified test account.");
+    message(isOwned() ?
+      "This device is linked to your test account. Press Compare to review missing workouts." :
+      "SYNC LOCKED: Link this browser's workout history to your verified test account using the backup and ownership controls above.");
     update();
   }
 
