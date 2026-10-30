@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; connect-src https://jarhehbbjcehbotfocbd.supabase.co; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'"><title>Lift Journal — Account Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#091117;--surface:#15232d;--surface2:#20313d;--line:#354b56;--text:#f5fafb;--muted:#b1c2cc;--accent:#8af0c0}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 12% 0%,rgba(42,111,103,.24),transparent 50%),var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(100% - 32px,460px);margin:44px auto 32px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}.brand{font-size:23px;font-weight:850}.brand span{color:var(--accent)}.label{border:1px solid #4c8572;border-radius:99px;color:var(--accent);padding:5px 10px;font-size:11px;font-weight:750}.panel{background:linear-gradient(155deg,#1c303a,#15232d);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 12px 35px #0004}h1{font-size:29px;letter-spacing:-.8px;margin:2px 0 8px}p{margin:0 0 18px;color:var(--muted)}.notice{background:#203b36;border:1px solid #4d8973;border-radius:12px;padding:12px;font-size:13px;margin-bottom:20px;color:#c9ffe2}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:20px;padding:5px;border:1px solid var(--line);border-radius:13px;background:#101d26}.tab{border:0;background:transparent;color:var(--muted);border-radius:9px;padding:11px;cursor:pointer;font:inherit;font-weight:750}.tab[aria-selected=true]{background:var(--surface2);color:var(--accent)}fieldset{border:0;padding:0;margin:0;min-width:0}label{display:block;margin:15px 0 6px;font-size:13px;font-weight:700}input{width:100%;border:1px solid #4b6572;border-radius:11px;background:#101e27;color:var(--text);padding:13px;font:inherit}input:disabled{opacity:.65}.submit{width:100%;border:0;border-radius:12px;padding:14px;background:var(--accent);color:#10231c;font:inherit;font-weight:800;margin-top:21px;opacity:.48}.caption{font-size:12px;color:var(--muted);margin:12px 0 0}.privacy{margin:17px auto 0;font-size:12px;text-align:center}button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.auth-status{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#101e27;color:var(--muted);font-size:13px;line-height:1.45;margin:0 0 15px}.auth-status[data-kind=error]{border-color:#b45d61;color:#ffb7b9}.auth-status[data-kind=success]{border-color:#4d8973;color:#c9ffe2}.submit:not(:disabled),.secondary:not(:disabled){opacity:1;cursor:pointer}.submit:disabled{cursor:not-allowed}.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:700;padding:11px 13px;cursor:pointer}.minor{margin:12px 0}.account-email{font-size:15px;font-weight:750;color:var(--accent);overflow-wrap:anywhere}.account-name{font-weight:650}.profile-section{border-top:1px solid var(--line);padding-top:17px;margin-top:19px}.profile-section h2{font-size:17px;margin:0 0 9px}.cloud-section{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}.cloud-section h2{font-size:18px;margin:0 0 8px}.cloud-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.cloud-actions button{flex:1;min-width:145px}.cloud-status{font-size:13px;color:var(--muted);margin:10px 0}.cloud-status[data-kind=error]{color:#ffb7b9}.cloud-status[data-kind=success]{color:#c9ffe2}.workout-list{padding-left:19px;margin:14px 0 0}.workout-list li{margin-bottom:10px;padding-left:3px;overflow-wrap:anywhere}.workout-list li small{display:block;color:var(--muted);font-size:12px}.cloud-note{color:var(--muted);font-size:12px;margin-top:8px}.backup-upload{border-top:1px solid var(--line);margin-top:20px;padding-top:20px}.backup-upload h2{font-size:18px;margin:0 0 8px}.backup-upload label.file-label{display:block;font-size:14px;margin:12px 0 7px}.backup-upload input[type=file]{font-size:12px;max-width:100%}.backup-upload .upload-hint{font-size:12px;color:var(--muted);margin:10px 0}.backup-upload .backup-summary{border:1px solid var(--line);background:#101e27;border-radius:10px;padding:11px 12px;font-size:13px;color:var(--muted);margin:13px 0}.backup-upload .backup-summary[data-kind=error]{color:#ffb7b9;border-color:#b45d61}.backup-upload .backup-summary[data-kind=success]{color:#c9ffe2;border-color:#4d8973}.backup-upload .backup-controls{display:flex;gap:8px;flex-wrap:wrap}.backup-upload .backup-controls button{flex:1;min-width:160px}.backup-upload button:disabled{opacity:.48;cursor:not-allowed}.backup-upload .backup-items{padding-left:17px;max-height:340px;overflow:auto;margin:13px 0}.backup-upload .backup-items li{padding:6px 0}.backup-upload .backup-items label{display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer;margin:0}.backup-upload .backup-items input{width:auto;min-width:18px;height:18px;margin-top:3px;accent-color:var(--accent)}.backup-upload .backup-items strong{font-weight:700}.backup-upload .backup-items small{font-size:12px;color:var(--muted);display:block}.backup-upload .upload-button{width:100%;margin-top:13px}.backup-upload a{color:#b4d8ff}.backup-upload input[type=file]{border-color:var(--line)}[hidden]{display:none!important}@media(max-width:400px){main{margin-top:25px}.panel{padding:18px}}
+</style>
+</head>
+<body>
+<main><header><div class="brand">Lift <span>Journal</span></div><span class="label">2.0 · Preview</span></header>
+<section class="panel" aria-label="Account preview">
+<h1>Your training, everywhere.</h1><p>One account for workouts, running, nutrition and progress across your devices.</p>
+<div class="notice"><strong>Private development preview.</strong> This page is not linked from the public app. New registrations are disabled until SMTP, account security, and privacy checks are complete.</div>
+<div id="auth-status" class="auth-status" role="status" aria-live="polite">Preparing the Supabase test connection…</div>
+<div class="tabs" id="mode-tabs" role="tablist" aria-label="Account mode">
+<button type="button" class="tab" id="tab-login" role="tab" aria-controls="panel-login" aria-selected="true">Sign in</button>
+<button type="button" class="tab" id="tab-signup" role="tab" aria-controls="panel-signup" aria-selected="false">Create account</button>
+</div>
+<section id="panel-login" role="tabpanel" aria-labelledby="tab-login">
+<form id="login-form" autocomplete="on">
+<fieldset id="login-fields" disabled>
+<label for="login-email">Email address</label><input id="login-email" type="email" autocomplete="email" required placeholder="you@example.com">
+<label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required placeholder="Your password">
+<button id="login-button" class="submit" type="submit">Sign in</button>
+</fieldset>
+</form>
+<p class="caption">Only existing test accounts can sign in. This preview does not provide password recovery yet.</p>
+</section>
+<section id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
+<fieldset disabled>
+<label for="signup-name">Display name</label><input id="signup-name" autocomplete="off" placeholder="What should we call you?">
+<label for="signup-email">Email address</label><input id="signup-email" type="email" autocomplete="off" placeholder="you@example.com">
+<label for="signup-password">Password</label><input id="signup-password" type="password" autocomplete="off" placeholder="At least 12 characters">
+<button class="submit" type="button" disabled>Create account (coming soon)</button>
+</fieldset>
+<p id="signup-info" class="caption">Public registration is disabled during this test.</p>
+</section>
+<section id="signed-in" hidden aria-label="Test account and profile">
+<h2>Test account connected</h2><p class="account-email" id="account-email"></p>
+<button id="sign-out" class="secondary" type="button">Sign out on this device</button>
+<div class="profile-section"><h2>Your private profile</h2><p id="profile-message" class="caption">Checking profile permissions…</p>
+<p id="account-name" class="account-name"></p>
+<button id="create-profile" class="secondary" type="button" hidden>Create my profile</button>
+<form id="profile-editor" hidden><label for="display-name">Display name (maximum 60 characters)</label>
+<input id="display-name" type="text" maxlength="60" autocomplete="nickname" placeholder="Your display name">
+<button id="save-profile" class="submit" type="submit">Save display name</button></form>
+</div>
+<section class="cloud-section" id="cloud-section" aria-labelledby="cloud-heading">
+<h2 id="cloud-heading">Your cloud workouts — test area</h2>
+<p class="caption">Create a clearly labeled sample workout and view the workouts accessible to your account. This does not sync or upload existing workout history.</p>
+<div class="cloud-actions">
+<button type="button" id="save-test-workout" class="secondary">Save sample workout</button>
+<button type="button" id="refresh-test-workouts" class="secondary">Refresh cloud list</button>
+</div>
+<p id="cloud-status" class="cloud-status" role="status" aria-live="polite">Preparing cloud storage…</p>
+<ul id="cloud-workout-list" class="workout-list" aria-label="Visible cloud workouts"></ul>
+<p class="cloud-note">Sample records are stored in Supabase until deliberately removed. This preview does not delete records.</p>
+</section>
+<section class="backup-upload" id="backup-upload-section" hidden aria-labelledby="backup-upload-title">
+<h2 id="backup-upload-title">Cloud upload from a Lift Journal backup</h2>
+<p class="caption">Stage 1: manually choose completed workouts from an exported backup. They will be added to this account only. No local history is changed, and existing cloud workouts are never replaced.</p>
+<label class="file-label" for="backup-upload-file">Choose backup (.json)</label>
+<input id="backup-upload-file" type="file" accept=".json,application/json">
+<p class="upload-hint">Get a real file from Lift Journal → Settings → Export backup (.json). If you have no workouts yet, <a href="./tests/fixtures/lift-journal-backup-sample.json" download="lift-journal-stage1-test-backup.json">download a sample test backup</a>.</p>
+<p class="upload-hint">Completed workouts only. Maximum 20 MB per backup and 250 completed sessions in this pilot. Your selected file is read locally; only confirmed selected workouts are uploaded.</p>
+<p id="backup-upload-summary" class="backup-summary" aria-live="polite">Select a Lift Journal backup file to review workouts before uploading.</p>
+<div class="backup-controls"><button id="backup-select-all" type="button" class="secondary" disabled>Select all new workouts</button></div>
+<ul class="backup-items" id="backup-workouts-list" aria-label="Workouts in selected backup"></ul>
+<button id="backup-upload-button" type="button" class="submit upload-button" disabled>Upload selected workouts</button>
+<p class="cloud-note">A backup can contain sensitive training and check-in details. Review the confirmation before uploading. This uploader cannot delete cloud records. To download a separate archive, use Stage 2 below.</p>
+</section>
+<section class="backup-upload cloud-download" id="cloud-download-section" hidden aria-labelledby="cloud-download-heading">
+<h2 id="cloud-download-heading">Stage 2 — Download your cloud workouts</h2>
+<p class="caption">Review the workouts stored in this account, choose which ones you want to keep, and download a private JSON archive. The file is saved on this device only after you confirm.</p>
+<div class="backup-controls"><button id="cloud-download-load" type="button" class="secondary">Load my cloud workouts</button><button id="cloud-download-select-all" type="button" class="secondary" disabled>Select all workouts</button></div>
+<p id="cloud-download-status" class="backup-summary" aria-live="polite">Load your cloud workouts to review and choose which ones to download.</p>
+<ul id="cloud-download-list" class="backup-items" aria-label="Cloud workouts available to download"></ul>
+<button id="cloud-download-button" type="button" class="submit upload-button" disabled>Download selected workouts (.json)</button>
+<p class="cloud-note"><strong>Important:</strong> This download is a <em>cloud archive</em>, not a Lift Journal backup. <strong>Do not use Settings → Import backup with this file</strong>; that feature replaces existing local data. Stage 3 below tests a separate, offline merged backup. The download does not modify Supabase or local workouts.</p>
+</section>
+<section class="backup-upload" id="cloud-merge-section" hidden aria-labelledby="merge-heading">
+<h2 id="merge-heading">Stage 3 — Restore preview: protect existing device workouts</h2>
+<p class="caption">Upload a backup exported from the <strong>destination device</strong>, compare it to this signed-in account's cloud workouts, and select missing workouts. The result is a <strong>new merged backup file</strong> for review. Nothing is automatically restored to the device.</p>
+<label class="file-label" for="merge-device-file">Step A — Choose destination device backup (.json)</label>
+<input id="merge-device-file" type="file" accept=".json,application/json">
+<p class="upload-hint">Export one from the destination Lift Journal device via Settings → Export backup (.json). For a risk-free test, <a href="./tests/fixtures/lift-journal-stage3-device-backup.json" download="lift-journal-stage3-test-device-backup.json">download a fictional destination-device backup</a> instead.</p>
+<div class="backup-controls"><button id="merge-compare" class="secondary" type="button" disabled>Step B — Compare with my cloud</button><button id="merge-select-all" class="secondary" type="button" disabled>Select all safe additions</button></div>
+<p id="merge-status" class="backup-summary" aria-live="polite">Start by selecting an Export backup file from the destination device.</p>
+<ul id="merge-list" class="backup-items" aria-label="Cloud workout merge comparison"></ul>
+<button id="merge-download" class="submit upload-button" type="button" disabled>Create merged backup (.json)</button>
+<p class="cloud-note"><strong>Safety:</strong> Existing device workouts, food, running records, program, and favorites remain in the generated file. Cloud workouts that are incompatible, already present, or potential duplicates cannot be selected. The preview does not read or modify localStorage or Supabase.</p>
+<p class="cloud-note"><strong>Do not import the generated file into your real app during these tests.</strong> Lift Journal's current Import backup feature replaces local data. We'll review and test that separate, explicit restore step before using it with personal data.</p>
+</section>
+</section>
+</section><p class="privacy">The existing app and its locally saved workouts are unchanged.</p></main>
+<script src="./auth-config.js"></script>
+<script type="module" src="./auth-ui.mjs"></script>
+</body></html>

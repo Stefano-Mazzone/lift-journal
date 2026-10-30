@@ -1,0 +1,57 @@
+{
+  "format": "lift-journal-v1",
+  "exported": "2026-10-26T21:00:00.000Z",
+  "data": {
+    "unit": "lb",
+    "sessions": {
+      "stage1-fixture-workout-001": {
+        "month": "2026-10",
+        "day": 0,
+        "cycleIndex": 0,
+        "programNumber": 1,
+        "scheduledDate": "2026-10-25",
+        "started": "2026-10-25T14:00:00.000Z",
+        "finished": "2026-10-25T15:00:00.000Z",
+        "unit": "lb",
+        "workoutSource": "plan",
+        "name": "TEST - Imported From Backup",
+        "exercises": [
+          {
+            "name": "Dumbbell Bench Press",
+            "sets": [
+              {
+                "reps": "10",
+                "weight": "25",
+                "done": true
+              },
+              {
+                "reps": "9",
+                "weight": "25",
+                "done": true
+              }
+            ]
+          },
+          {
+            "name": "Lat Pulldown",
+            "sets": [
+              {
+                "reps": "12",
+                "weight": "55",
+                "done": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "hasProgram": true,
+    "program": {
+      "index": 0,
+      "number": 1,
+      "started": "2026-10-01T00:00:00.000Z",
+      "history": []
+    },
+    "schedule": {},
+    "favoriteMovements": []
+  }
+}
