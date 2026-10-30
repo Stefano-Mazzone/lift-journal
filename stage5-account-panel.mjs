@@ -1,4 +1,8 @@
 import { createSettingsManualSync } from "./stage5-manual-sync.mjs";
+import { makeSafetyBackup } from "./cloud-sync-core.mjs";
+import {
+  DEVICE_OWNER_KEY, DEVICE_DATA_KEY, deviceOwnerStatus, bindDeviceOwner
+} from "./stage6-device-owner.mjs";
 
 // Lift Journal 2.0 — Stage 5B: verified test accounts with opt-in
 // manual workout sync embedded directly in the draft Settings UI.
@@ -18,6 +22,7 @@ let displayName = "";
 let busy = false;
 let initialized = false;
 let refreshGeneration = 0;
+let ownerBackupSnapshot = null;
 let statusMessage = testOrigin ? "Checking your existing test account…" :
   "This experimental account integration is only enabled in the localhost test version.";
 let statusKind = "info";
@@ -61,6 +66,34 @@ function renderAccount() {
   // The full-page Stage 4 link remains available as a fallback; manual sync
   // now also renders directly inside the signed-in Settings section.
   sync.hidden = !authenticated;
+  const ownerPanel = $("lj-device-owner-panel");
+  const ownerMessage = $("lj-device-owner-message");
+  const ownerActions = $("lj-device-owner-actions");
+  const ownerBackup = $("lj-owner-backup");
+  const ownerAcknowledge = $("lj-owner-ack");
+  const ownerClaim = $("lj-owner-claim");
+  if (ownerPanel && ownerMessage && ownerActions && ownerBackup && ownerAcknowledge && ownerClaim) {
+    ownerPanel.hidden = !authenticated;
+    const ownership = authenticated ? deviceOwnerStatus(localStorage, currentUser.id) : { status: "signed-out" };
+    const canLink = ownership.status === "unclaimed" || ownership.status === "review-required";
+    ownerActions.hidden = !authenticated || !canLink;
+    ownerMessage.dataset.kind = ownership.status === "linked" ? "success" : "info";
+    ownerMessage.textContent = ({
+      linked: "Linked for manual sync to this verified test account. The link stays after sign-out. Workout data is still visible to other users of this browser profile.",
+      unclaimed: "Sync is LOCKED. This browser history has not been linked to any cloud account. Save a full backup and confirm ownership before enabling synchronization.",
+      "review-required": "Sync is LOCKED. A local backup import replaced the data since linking. The SAME account must review a new safety backup and reapprove ownership.",
+      "other-account": "Sync is LOCKED. This browser history is linked to ANOTHER account. Sign in to its original account or use a separate Chrome profile. Local workouts are not private on this shared browser.",
+      damaged: "Sync is LOCKED. The device ownership record is invalid or storage is unavailable. Do not reset storage or sync without recovering a backup."
+    })[ownership.status] || "Cloud sync is locked until account ownership is verified.";
+    if (!canLink) ownerBackupSnapshot = null;
+    const fresh = !!ownerBackupSnapshot && currentUser?.id === ownerBackupSnapshot.userId &&
+      !busy && canLink;
+    ownerBackup.disabled = busy || !canLink;
+    ownerAcknowledge.disabled = !fresh;
+    ownerClaim.disabled = !fresh || !ownerAcknowledge.checked;
+    ownerClaim.textContent = ownership.status === "review-required" ?
+      "Reapprove this account for sync" : "Link this device history to my test account";
+  }
   embeddedSync.mount();
 }
 
@@ -68,8 +101,116 @@ function isAccountPanel(el) {
   return !!el && !!el.closest?.("#lj-account-panel");
 }
 
-// Delegated events survive all the app's Settings re-renders.
-document.addEventListener("lift-journal:settings-mounted", renderAccount);
+// Delegated events survive all the app's Settings re-renders. A navigation
+// resets ownership backup consent; a stale form cannot silently authorize sync.
+document.addEventListener("lift-journal:settings-mounted", () => {
+  ownerBackupSnapshot = null;
+  renderAccount();
+});
+document.addEventListener("lift-journal:device-owner-review", () => {
+  ownerBackupSnapshot = null;
+  embeddedSync.reset();
+  renderAccount();
+});
+
+function saveOwnerBackup(json, filename) {
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+document.addEventListener("change", event => {
+  if (event.target?.id === "lj-owner-ack") renderAccount();
+});
+
+document.addEventListener("click", async event => {
+  const button = event.target?.closest?.("#lj-owner-backup, #lj-owner-claim");
+  if (!button || !isAccountPanel(button) || !testOrigin || !client || !currentUser || busy) return;
+  const ownership = deviceOwnerStatus(localStorage, currentUser.id);
+  if (!["unclaimed", "review-required"].includes(ownership.status)) return;
+  if (button.id === "lj-owner-backup") {
+    try {
+      const raw = localStorage.getItem(DEVICE_DATA_KEY);
+      if (!raw) throw new Error("No device workout history to protect.");
+      const at = new Date().toISOString();
+      const json = makeSafetyBackup(JSON.parse(raw), at);
+      saveOwnerBackup(json, "lift-journal-ACCOUNT-LINK-SAFETY-BACKUP-" + at.slice(0, 10) + ".json");
+      ownerBackupSnapshot = {
+        userId: currentUser.id,
+        raw,
+        ownerRaw: localStorage.getItem(DEVICE_OWNER_KEY)
+      };
+      const ack = $("lj-owner-ack");
+      if (ack) ack.checked = false;
+      renderAccount();
+      const message = $("lj-device-owner-message");
+      if (message) message.textContent =
+        "Backup download requested. Verify the JSON file exists before checking the acknowledgement.";
+    } catch (error) {
+      ownerBackupSnapshot = null;
+      renderAccount();
+      const message = $("lj-device-owner-message");
+      if (message) message.textContent = "Cannot create safety backup: " + (error?.message || "Unknown error");
+    }
+    return;
+  }
+  const snapshot = ownerBackupSnapshot;
+  if (!snapshot || !($("lj-owner-ack")?.checked) || snapshot.userId !== currentUser.id ||
+      localStorage.getItem(DEVICE_DATA_KEY) !== snapshot.raw ||
+      localStorage.getItem(DEVICE_OWNER_KEY) !== snapshot.ownerRaw) {
+    ownerBackupSnapshot = null;
+    renderAccount();
+    const message = $("lj-device-owner-message");
+    if (message) message.textContent =
+      "Ownership or workouts changed after backup. Restart the safety backup and account approval.";
+    return;
+  }
+  const email = currentUser.email || "this account";
+  const quantity = Object.keys(JSON.parse(snapshot.raw).sessions || {}).length;
+  if (!window.confirm(
+    "LINK THIS TEST BROWSER HISTORY TO ONE ACCOUNT\n\n" +
+    "Verified email: " + email + "\nWorkout records: " + quantity +
+    "\n\nOnly this account will be permitted to manually synchronize these local workouts. " +
+    "This does not encrypt them or hide them from other browser users. " +
+    "Changing accounts will NOT reassign this device.\n\n" +
+    "You confirmed your complete safety backup was downloaded. Continue?"
+  )) return;
+  busy = true;
+  renderAccount();
+  try {
+    const expectedId = snapshot.userId;
+    const { data: { user: verified }, error } = await client.auth.getUser();
+    if (error || !verified || verified.id !== expectedId ||
+        currentUser?.id !== expectedId || !testOrigin) {
+      throw new Error("Signed-in account could not be verified or changed.");
+    }
+    bindDeviceOwner({
+      storage: localStorage,
+      verifiedId: expectedId,
+      expectedData: snapshot.raw,
+      expectedOwnerRaw: snapshot.ownerRaw,
+      now: new Date().toISOString()
+    });
+    ownerBackupSnapshot = null;
+    embeddedSync.reset();
+    setStatus("Device sync ownership saved for this test account. No workouts were uploaded.", "success");
+  } catch (error) {
+    ownerBackupSnapshot = null;
+    renderAccount();
+    const message = $("lj-device-owner-message");
+    if (message) message.textContent =
+      "Device linking was stopped: " + (error?.message || "Unknown error");
+  } finally {
+    busy = false;
+    renderAccount();
+  }
+});
+
 document.addEventListener("submit", async event => {
   const form = event.target;
   if (form?.id !== "lj-account-login" || !isAccountPanel(form)) return;
@@ -102,6 +243,8 @@ document.addEventListener("click", async event => {
   const target = event.target?.closest?.("#lj-account-signout");
   if (!target || !isAccountPanel(target) || busy || !testOrigin || !client) return;
   busy = true;
+  ownerBackupSnapshot = null;
+  embeddedSync.reset();
   setStatus("Signing out of this test account…");
   try {
     const { error } = await client.auth.signOut({ scope: "local" });
@@ -127,6 +270,7 @@ async function refreshAccount() {
     if (generation !== refreshGeneration) return;
     if (sessionError) throw sessionError;
     if (!session) {
+      ownerBackupSnapshot = null;
       currentUser = null;
       displayName = "";
       setStatus("Not signed in. Your current workouts stay on this browser.");
@@ -136,6 +280,10 @@ async function refreshAccount() {
     const { data: { user }, error: userError } = await client.auth.getUser();
     if (generation !== refreshGeneration) return;
     if (userError || !user) throw userError || new Error("Account verification failed.");
+    if (currentUser?.id !== user.id) {
+      ownerBackupSnapshot = null;
+      embeddedSync.reset();
+    }
     currentUser = user;
     displayName = "";
     setStatus("Test account verified. Workouts are still local; automatic synchronization is OFF.", "success");
@@ -150,6 +298,8 @@ async function refreshAccount() {
     }
   } catch (error) {
     if (generation !== refreshGeneration) return;
+    ownerBackupSnapshot = null;
+    embeddedSync.reset();
     currentUser = null;
     displayName = "";
     setStatus("Account could not be verified: " + (error?.message || "Network unavailable") +
@@ -160,6 +310,11 @@ async function refreshAccount() {
 window.addEventListener("storage", event => {
   // Keep the displayed account current when the separate manual-sync tab
   // signs in/out. Never react to the workout-data storage key.
+  if (event.key === DEVICE_OWNER_KEY || event.key === DEVICE_DATA_KEY || event.key === null) {
+    ownerBackupSnapshot = null;
+    embeddedSync.reset();
+    renderAccount();
+  }
   if (event.key === AUTH_KEY || event.key === null) void refreshAccount();
 });
 document.addEventListener("visibilitychange", () => {
