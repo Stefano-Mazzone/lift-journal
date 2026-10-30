@@ -1,7 +1,8 @@
 // Lift Journal 2.0 — Stage 6B1 EXPERIMENTAL per-account encrypted vault.
-// Dormant module: NOT wired into the app, its localStorage data or cloud sync.
-// This is a building block, NOT shared-browser privacy protection until the
-// plaintext legacy key and live in-memory data are safely migrated/locked.
+// Used ONLY by the opt-in Stage 6B2 encrypted-copy preview in Settings.
+// NOT wired into normal workout saves or cloud sync. This is NOT shared-browser
+// privacy protection: the plaintext legacy key and in-memory app remain until
+// safe migration, account gating, and logout locking are implemented.
 export const VAULT_PREFIX = 'lift-journal-private-v1:';
 export const VAULT_VERSION = 1;
 const ITERATIONS = 310000;
