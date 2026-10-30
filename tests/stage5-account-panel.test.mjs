@@ -42,7 +42,7 @@ function accountHarness(hostname = "127.0.0.1") {
     addEventListener(name, callback) { (listeners[name] ||= []).push(callback); },
     setTimeout() {}
   };
-  const cleaned = source.replace(/^import [^\n]*\n/gm, "")
+  const cleaned = source.replace(/^import \{[\s\S]*?\} from "[^"]+";\s*/gm, "")
     .replace(/renderAccount\(\);\s*void initialize\(\);\s*$/, "");
   const api = new Function("window", "document", "location",
     "const createSettingsManualSync = () => ({mount(){},reset(){}});\n" +
@@ -60,7 +60,7 @@ test("main app and account module remain syntactically valid", () => {
   const end = app.indexOf("</script>", start);
   assert.ok(start >= 0 && end > start);
   assert.doesNotThrow(() => new Function(app.slice(start + "<script>".length, end)));
-  assert.doesNotThrow(() => new Function(source.replace(/^import [^\n]*\n/gm, "")));
+  assert.doesNotThrow(() => new Function(source.replace(/^import \{[\s\S]*?\} from "[^"]+";\s*/gm, "")));
 });
 
 test("panel markup is unique, accessible and part of Settings only", () => {
@@ -74,6 +74,9 @@ test("panel markup is unique, accessible and part of Settings only", () => {
   assert.match(html, /id="lj-account-open-sync"/);
   assert.match(html, /href=".\/sync-preview\.html"/);
   assert.match(html, /id="lj-stage5-sync-root"/);
+  assert.match(html, /id="lj-device-owner-panel"/);
+  assert.match(html, /id="lj-owner-claim"/);
+  assert.match(html, /id="lj-owner-ack"/);
   assert.match(html, /Signing in never automatically uploads/i);
   assert.ok(app.includes("+whatsNewPanel()+stage5AccountPanel()"));
   assert.equal(app.split("+whatsNewPanel()+stage5AccountPanel()").length, 2);
@@ -123,10 +126,13 @@ test("non-local host hides test login even if a user object is present", () => {
   assert.equal(h.elements["lj-account-open-sync"].hidden, true);
 });
 
-test("account integration never accesses device workout storage or auto-syncs", () => {
+test("sign-in never auto-syncs and ownership linking requires deliberate actions", () => {
   assert.ok(!source.includes('localStorage.setItem('));
   assert.ok(!source.includes('localStorage.removeItem('));
-  assert.ok(!source.includes('localStorage.getItem('));
+  assert.ok(source.includes('localStorage.getItem(DEVICE_DATA_KEY)'));
+  assert.ok(source.includes('makeSafetyBackup(JSON.parse(raw)'));
+  assert.ok(source.includes('bindDeviceOwner('));
+  assert.ok(source.includes('!($("lj-owner-ack")?.checked)'));
   assert.ok(!source.includes('window.open('));
   assert.ok(!source.includes('client.from("workouts")'));
   assert.ok(!source.includes('fetchCloudWorkouts('));
