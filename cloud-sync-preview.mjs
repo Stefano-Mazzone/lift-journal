@@ -4,6 +4,7 @@
 // Stage 4 pilot only: no automatic sync, no offline queue, no conflict overwrites.
 import { fetchCloudWorkouts } from "./cloud-workout-download.mjs";
 import { buildSyncPlan, makeSafetyBackup, planSelectedSync } from "./cloud-sync-core.mjs";
+import { DEVICE_OWNER_KEY, isDeviceOwnedBy } from "./stage6-device-owner.mjs";
 
 const KEY = "lift-journal-v1";
 const AUTH_KEY = "lift-journal-auth-test-v1";
@@ -19,6 +20,7 @@ let sequence = 0;
 let backupRequested = false;
 const selectedUploads = new Set();
 const selectedDownloads = new Set();
+const ownerLinked = () => !!user && localOnly && isDeviceOwnedBy(localStorage, user.id);
 
 const elements = {
   status: $("sync-status"),
@@ -88,23 +90,23 @@ function update() {
   const selectedCount = selectedUploads.size + selectedDownloads.size;
   const safeDownloads = snapshot?.plan.download.filter(entry => entry.status === "eligible") || [];
   selectMissingCloudButton.disabled = busy || !snapshot || !user ||
-    snapshot.ownerId !== user.id || !localOnly || safeDownloads.length === 0;
+    snapshot.ownerId !== user.id || !ownerLinked() || safeDownloads.length === 0;
   // Comparison rows are first rendered while busy=true. Recalculate the row
   // controls when the async comparison finishes, rather than leaving safe
   // eligible checkboxes permanently disabled.
   for (const list of [elements.uploadList, elements.downloadList]) {
     for (const checkbox of list.querySelectorAll('input[type="checkbox"]')) {
-      checkbox.disabled = busy || !snapshot || !user ||
+      checkbox.disabled = busy || !snapshot || !ownerLinked() ||
         checkbox.dataset.eligible !== "true";
       const choices = list === elements.uploadList ? selectedUploads : selectedDownloads;
       checkbox.checked = choices.has(checkbox.dataset.workoutId);
     }
   }
-  elements.compare.disabled = busy || !user || !localOnly;
-  elements.backup.disabled = busy || !snapshot;
-  elements.backupCheck.disabled = busy || !snapshot || !backupRequested;
-  elements.ownerCheck.disabled = busy || !snapshot;
-  elements.apply.disabled = busy || !snapshot || !backupRequested ||
+  elements.compare.disabled = busy || !ownerLinked();
+  elements.backup.disabled = busy || !snapshot || !ownerLinked();
+  elements.backupCheck.disabled = busy || !snapshot || !backupRequested || !ownerLinked();
+  elements.ownerCheck.disabled = busy || !snapshot || !ownerLinked();
+  elements.apply.disabled = busy || !snapshot || !ownerLinked() || !backupRequested ||
     !elements.backupCheck.checked || !elements.ownerCheck.checked ||
     selectedCount === 0 || selectedCount > MAX_CHANGES;
   elements.apply.textContent = selectedCount ?
@@ -121,14 +123,17 @@ function showAccount(nextUser) {
   elements.accountEmail.textContent = user?.email || "";
   if (oldId !== (user?.id || null)) {
     invalidate();
-    announce(user ? "Signed in. Compare this test device's workouts to the cloud." :
+    announce(user ? (ownerLinked() ?
+      "Signed in. This browser is linked to your test account; manual sync can be compared." :
+      "SYNC LOCKED: Open Lift Journal Settings to download a safety backup and link this browser history to this test account.") :
       "Sign in with an existing authorized test account.");
   }
 }
 async function verifyUser(expectedId) {
   if (!client) return false;
   const { data: { user: verified }, error } = await client.auth.getUser();
-  return !error && verified?.id === expectedId && user?.id === expectedId;
+  return !error && verified?.id === expectedId && user?.id === expectedId &&
+    ownerLinked();
 }
 async function refreshUser() {
   if (!client) return;
@@ -182,7 +187,7 @@ function render(plan) {
   update();
 }
 selectMissingCloudButton.addEventListener("click", () => {
-  if (!snapshot || busy || !user || snapshot.ownerId !== user.id || !localOnly) {
+  if (!snapshot || busy || !user || snapshot.ownerId !== user.id || !ownerLinked()) {
     announce("Cannot select: comparison is outdated or the account is not ready. Compare again.", "error");
     return;
   }
@@ -248,7 +253,7 @@ elements.signOut.addEventListener("click", async () => {
 });
 
 elements.compare.addEventListener("click", async () => {
-  if (!user || busy || !client || !localOnly) return;
+  if (!user || busy || !client || !ownerLinked()) return;
   const ownerId = user.id;
   invalidate();
   const request = ++sequence;
@@ -260,8 +265,8 @@ elements.compare.addEventListener("click", async () => {
     const raw = readRaw();
     const localData = JSON.parse(raw);
     const cloudRows = await fetchCloudWorkouts(client, ownerId,
-      () => request === sequence && user?.id === ownerId);
-    if (request !== sequence || user?.id !== ownerId) return;
+      () => request === sequence && user?.id === ownerId && ownerLinked());
+    if (request !== sequence || user?.id !== ownerId || !ownerLinked()) return;
     if (readRaw() !== raw) throw new Error("This device's history changed while comparing. Refresh comparison.");
     const plan = buildSyncPlan(localData, cloudRows);
     snapshot = { raw, localData, cloudRows, plan, ownerId };
@@ -284,7 +289,7 @@ elements.compare.addEventListener("click", async () => {
 });
 
 elements.backup.addEventListener("click", () => {
-  if (!snapshot || busy || !localOnly || user?.id !== snapshot.ownerId) return;
+  if (!snapshot || busy || !ownerLinked() || user?.id !== snapshot.ownerId) return;
   try {
     if (readRaw() !== snapshot.raw) throw new Error("Device history changed. Compare again.");
     const at = new Date().toISOString();
@@ -302,7 +307,7 @@ elements.backupCheck.addEventListener("change", update);
 elements.ownerCheck.addEventListener("change", update);
 
 elements.apply.addEventListener("click", async () => {
-  if (!snapshot || !user || busy || !localOnly || !backupRequested ||
+  if (!snapshot || !user || busy || !ownerLinked() || !backupRequested ||
       !elements.backupCheck.checked || !elements.ownerCheck.checked) return;
   const current = snapshot;
   const uploadIds = [...selectedUploads];
@@ -328,8 +333,8 @@ elements.apply.addEventListener("click", async () => {
     if (readRaw() !== current.raw) throw new Error("Device workouts changed after comparison.");
     // Never apply an outdated plan: get a fresh cloud view and recompute both directions.
     const freshCloud = await fetchCloudWorkouts(client, owner,
-      () => request === sequence && user?.id === owner);
-    if (request !== sequence || user?.id !== owner) return;
+      () => request === sequence && user?.id === owner && ownerLinked());
+    if (request !== sequence || user?.id !== owner || !ownerLinked()) return;
     if (readRaw() !== current.raw) throw new Error("Device history changed during refresh. Compare again.");
     const fresh = planSelectedSync(current.localData, freshCloud, uploadIds, downloadIds);
     for (const item of fresh.upload) {
@@ -386,7 +391,7 @@ elements.apply.addEventListener("click", async () => {
 });
 
 window.addEventListener("storage", e => {
-  if (e.key === KEY || e.key === AUTH_KEY || e.key === null) {
+  if (e.key === KEY || e.key === AUTH_KEY || e.key === DEVICE_OWNER_KEY || e.key === null) {
     invalidate();
     announce("Browser storage changed in another tab. Compare again before syncing.", "error");
     if (e.key === AUTH_KEY || e.key === null) void refreshUser();
