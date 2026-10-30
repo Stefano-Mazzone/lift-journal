@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildSyncPlan, makeSafetyBackup, planSelectedSync } from "../cloud-sync-core.mjs";
+import { DEVICE_OWNER_KEY, isDeviceOwnedBy } from "../stage6-device-owner.mjs";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -88,10 +89,20 @@ function harness({ rows = [cloudRow()], origin = "127.0.0.1" } = {}) {
   document.getElementById = id => id === "lj-stage5-sync-root" ? document.root : null;
   const state = {
     bytes: JSON.stringify(localFixture),
-    writes: 0, reloads: 0, inserts: [], downloads: [], confirms: []
+    ownerRaw: JSON.stringify({
+      version: 1, userId: "test-user-id", state: "active",
+      createdAt: "2026-10-29T00:00:00Z", updatedAt: "2026-10-29T00:00:00Z"
+    }),
+    writes: 0, reloads: 0, inserts: [], downloads: [], confirms: [],
+    reads: 0
   };
   const localStorage = {
-    getItem: key => key === "lift-journal-v1" ? state.bytes : null,
+    getItem: key => {
+      state.reads++;
+      if (key === "lift-journal-v1") return state.bytes;
+      if (key === DEVICE_OWNER_KEY) return state.ownerRaw;
+      return null;
+    },
     setItem(key, value) {
       assert.equal(key, "lift-journal-v1");
       state.bytes = value;
@@ -129,10 +140,11 @@ function harness({ rows = [cloudRow()], origin = "127.0.0.1" } = {}) {
   };
   const create = new Function(
     "location","document","localStorage","window","URL",
-    "fetchCloudWorkouts","buildSyncPlan","makeSafetyBackup","planSelectedSync",
+    "fetchCloudWorkouts","buildSyncPlan","makeSafetyBackup","planSelectedSync","isDeviceOwnedBy",
     inspectedSource + "\nreturn createSettingsManualSync;"
   )({ hostname: origin }, document, localStorage, window, URL,
-    async () => clone(cloudRows), buildSyncPlan, makeSafetyBackup, planSelectedSync);
+    async () => clone(cloudRows), buildSyncPlan, makeSafetyBackup, planSelectedSync,
+    isDeviceOwnedBy);
   const widget = create({ getClient: () => client, getUser: () => user });
   widget.mount();
   return {
@@ -244,6 +256,7 @@ test("account switching and rerenders invalidate stale selection", async () => {
   h.setUser({ id: "different-user-id", email: "other@example.com" });
   h.widget.mount();
   assert.equal(h.widget._inspect.get().ownerId, "different-user-id");
+  assert.equal(h.root.nodes["lj5-sync-compare"].disabled, true, "wrong account is locked");
   assert.equal(h.widget._inspect.get().snapshot, null);
   assert.deepEqual(h.widget._inspect.get().downloads, []);
   h.setUser({ id: "test-user-id", email: "test@example.com" });
@@ -269,5 +282,57 @@ test("account switch resets an in-flight busy latch so the next account can comp
   h.widget.mount();
   assert.equal(h.widget._inspect.get().busy, false);
   assert.equal(h.widget._inspect.get().snapshot, null);
+  assert.equal(h.root.nodes["lj5-sync-compare"].disabled, true);
+  h.setUser({ id: "test-user-id", email: "original@example.com" });
+  h.widget.mount();
   assert.equal(h.root.nodes["lj5-sync-compare"].disabled, false);
+});
+
+
+test("no device-ownership record: compare and all cloud writes are blocked", async () => {
+  const h = harness();
+  h.state.ownerRaw = null;
+  h.widget.mount();
+  assert.equal(h.root.nodes["lj5-sync-compare"].disabled, true);
+  await h.widget._inspect.compare();
+  assert.equal(h.widget._inspect.get().snapshot, null);
+  assert.equal(h.state.inserts.length, 0);
+  assert.equal(h.state.writes, 0);
+});
+test("different account cannot compare or sync local workouts", async () => {
+  const h = harness();
+  h.setUser({ id: "other-user", email: "other@example.com" });
+  h.widget.mount();
+  assert.equal(h.root.nodes["lj5-sync-compare"].disabled, true);
+  await h.widget._inspect.compare();
+  assert.equal(h.widget._inspect.get().snapshot, null);
+  assert.equal(h.state.inserts.length, 0);
+});
+test("suspended backup import or damaged owner record fails closed", async () => {
+  const h = harness();
+  for (const marker of [
+    JSON.stringify({...JSON.parse(h.state.ownerRaw), state:"review-required"}),
+    "{invalid-json}"
+  ]) {
+    h.state.ownerRaw = marker;
+    h.widget.mount();
+    assert.equal(h.root.nodes["lj5-sync-compare"].disabled, true);
+    await h.widget._inspect.compare();
+    assert.equal(h.widget._inspect.get().snapshot, null);
+  }
+  assert.equal(h.state.writes, 0);
+});
+test("ownership changing after compare blocks a previously approved download", async () => {
+  const h = harness();
+  await h.widget._inspect.compare();
+  h.widget._inspect.selectDownloads();
+  h.widget._inspect.backup();
+  h.root.nodes["lj5-sync-backup-ack"].checked = true;
+  h.root.nodes["lj5-sync-owner-ack"].checked = true;
+  h.widget._inspect.update();
+  h.state.ownerRaw = JSON.stringify({...JSON.parse(h.state.ownerRaw), state:"review-required"});
+  await h.widget._inspect.apply();
+  assert.equal(h.state.inserts.length, 0);
+  assert.equal(h.state.writes, 0);
+  assert.equal(h.state.reloads, 0);
 });
