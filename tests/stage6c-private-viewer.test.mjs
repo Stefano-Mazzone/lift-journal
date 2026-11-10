@@ -58,6 +58,8 @@ test("viewer uses encrypted vault only and includes no plain-history reads or wr
   assert.match(viewer,/openVault\(/);
   assert.match(viewer,/document\.hidden/);
   assert.match(viewer,/visibilitychange/);
+  assert.match(viewer,/window\.addEventListener\("blur"/);
+  assert.match(viewer,/window\.addEventListener\("focus"/);
   assert.match(viewer,/pagehide/);
   assert.match(viewer,/onAuthStateChange/);
   assert.match(viewer,/replaceChildren\(\)/);
