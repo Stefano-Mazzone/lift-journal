@@ -237,6 +237,14 @@ window.addEventListener("storage", event => {
     if (event.key === AUTH_KEY || event.key === null) void refreshAccount();
   }
 });
+// Extra fail-closed guard: changing browser windows or switching applications
+// can blur this window without a visibilitychange event. Lock both paths.
+window.addEventListener("blur", () => {
+  lock("Viewer locked when the browser window lost focus.");
+});
+window.addEventListener("focus", () => {
+  if (client && !document.hidden) void refreshAccount();
+});
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) lock("Viewer locked when this tab became hidden.");
   else if (client) void refreshAccount();
