@@ -1,6 +1,6 @@
 # Lift Journal 2.0 — Stage 6C1: gated encrypted private viewer (DRAFT)
 
-**Status:** Implemented in Draft PR #11. Pure-function and static checks passed in an isolated JS harness. OWNER CHROME TESTS PASSED for the scoped read-only viewer, including browser auto-lock retest and return-to-owner unlock. Final manual relock after last screenshot not yet confirmed. Production unchanged; public signup and automatic sync stay disabled.
+**Status:** Implemented in Draft PR #11. Pure-function and static checks passed in an isolated JS harness. OWNER CHROME TESTS PASSED for the scoped read-only viewer, including browser auto-lock retest and return-to-owner unlock. Final manual relock confirmed by owner screenshot; private viewer locked and no workout information visible. Production unchanged; public signup and automatic sync stay disabled.
 
 ## Scope and privacy limitations
 
@@ -44,7 +44,7 @@ This does NOT protect an unlocked screen, compromised browser extensions/scripts
 - Different existing Admin account correctly showed **PRIVATE VIEW LOCKED**; no encrypted unlock form. **PASS**.
 - Returning to original Test User restored only the passphrase prompt, not data. **PASS**.
 - Unlock after account switch again showed **2 workouts, 2 favorites, 1 meal, 0 runs**. **PASS**.
-- Last supplied screenshot showed unlocked data; user was instructed to click **Lock encrypted history** afterward. Do not record that final action as confirmed until acknowledged.
+- Owner subsequently supplied screenshot confirming final manual relock: account remains verified, passphrase required and no workout history shown. **PASS**.
 - These results verify this limited viewer, NOT encrypted storage behavior of the original app. Legacy plaintext storage remains a release blocker.
 ## Next Stage 6C2 release gates
 
