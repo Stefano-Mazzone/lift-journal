@@ -8,7 +8,7 @@ Stage 6C1 adds **private-preview.html**, a standalone, localhost-only, **read-on
 
 Requires an existing server-verified Supabase Test User, Stage 6A linked owner marker on the same browser origin, a matching encrypted owner ID, and a separate encryption passphrase. Stored authentication tokens alone are never treated as verified identity. Wrong/Admin accounts are refused.
 
-Only a temporary read-only DOM view is shown: workout counts, up to 40 workout names/dates/exercises, favorite count and up to 40 favorite names, meal and running-log counts. All user strings render via textContent. No decrypted data is saved to browser storage or uploaded. Manual lock, signout, switching accounts, leaving the tab, navigation/pagehide, any auth/owner/vault storage change, and failed periodic identity checks clear the display.
+Only a temporary read-only DOM view is shown: workout counts, up to 40 workout names/dates/exercises, favorite count and up to 40 favorite names, meal and running-log counts. All user strings render via textContent. No decrypted data is saved to browser storage or uploaded. Manual lock, signout, switching accounts, leaving the tab, losing browser-window focus, navigation/pagehide, any auth/owner/vault storage change, and failed periodic identity checks clear the display. **2026-11-09:** Added window-blur locking after owner screenshot still showed an unlocked page during tab-switch testing. Simulated blur/visibility events now both clear all displayed rows; owner Chrome retest is pending.
 
 This does NOT protect an unlocked screen, compromised browser extensions/scripts, browser memory inspection, lost passphrases, or the original plaintext app. Full account isolation requires a separate migration and encrypted write-through redesign.
 
