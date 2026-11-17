@@ -65,6 +65,22 @@ Added five UI regression cases covering review-before-write, cancellation, succe
 4. Enter the **new working Stage 6B3 encryption passphrase**. Click **Review encrypted TEST compartment creation**. An inline review must appear. This step does NOT create storage.
 5. Check that the account and backups on the review are correct, then click **Confirm and create encrypted TEST compartment**. Expect an explicit success with revision 1 and two workouts/two favorites, OR an error that stays on the page.
 6. If the status is anything else, STOP and send the status screenshot (hide passphrase). Do not retry and do not clear storage.
+## Owner Chrome results — November 17, 2026
+
+These results are from owner-reported Chrome screenshots and confirmations using a fictional Test User on the localhost test origin, **not** a security audit or production release:
+
+- The first and second native-browser-confirmation attempts failed to display success and a subsequent account/storage recheck reported no private compartment. These early attempts were NOT marked successful.
+- In the revised inline-confirmation build, Test User account and Stage 6A device owner verified; fresh legacy and Stage 6B encrypted backups downloaded and acknowledged.
+- Inline **Review encrypted TEST compartment creation** appeared without a native dialog. After final confirmation, green success message reported **Stage 6C2 encrypted compartment created and verified (revision 1), 2 workouts, 2 favorites, originals preserved**.
+- New Stage 6C2 private compartment unlocked with the working separate encryption passphrase. Screenshot confirmed **2 workouts, 2 favorites, 1 saved meal, revision 1**, and expected favorite names.
+- The inline favorite-save review opened. Final confirmation saved fictional `TEST - Stage 6C2 Encrypted Favorite` in v2 only. Screenshot confirmed **2 workouts, 3 favorites, 1 saved meal, revision 2**.
+- Owner hard-reloaded the page and unlocked the v2 compartment again. Screenshot confirmed revision **2** and all **3** favorites persisted, including the fictional test favorite.
+- Owner downloaded the new `lift-journal-STAGE-6C2-ENCRYPTED-*.json` archive and confirmed the download succeeded. This archive format does not have a tested restore workflow.
+- Owner clicked **Lock and hide test data**. Screenshot showed private section hidden and passphrase needed to unlock again.
+- Owner then checked the original `index.html` and replied **passed** after verifying it still had **2 fictional workouts and 2 saved favorites**, unlike the v2 compartment with 3 favorites.
+- **Not yet verified for Stage 6C2A:** wrong-user/Admin restriction in this new lab, wrong-passphrase save refusal in real Chrome, concurrent-tab race, interrupted real write, corrupted-record recovery, and a full v2 backup restore. Earlier Stage 6C1 viewer account-switch tests do not substitute for Stage 6C2A lab testing.
+
+Result: **Stage 6C2A create/unlock/save/reload/original-unchanged path passed owner Chrome tests**. All original plaintext storage persists, so full shared-browser privacy remains **NOT IMPLEMENTED**.
 ## Remaining Stage 6C2B / 6C3 release blockers
 
 - Gate the **normal** Lift Journal UI BEFORE any private data is loaded; never initialize sensitive history while signed out or another account is active.
