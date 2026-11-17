@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Lift Journal 2.0 — Stage 6C2B Private Workout Test</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;--bg:#0c111a;--panel:#162730;--line:#36545d;--text:#edf7fb;--muted:#afc4cb;--accent:#88edbf}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;line-height:1.5}
+main{max-width:840px;margin:24px auto;padding:18px}
+h1{font-size:1.65rem;margin:0 0 10px}h2{font-size:1.15rem;margin:0 0 12px}h3{font-size:1rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin:0 0 16px}
+.note{font-size:.92rem;color:var(--muted)}.warning{border-left:4px solid #e8bd67;background:#343129;padding:14px}
+.status{border:1px solid var(--line);padding:12px;border-radius:9px;min-height:48px;white-space:pre-wrap}
+.status[data-kind=error]{border-color:#be6b75;color:#ffc9ce}
+.status[data-kind=success]{border-color:#65ba91;color:#a3f4cc}
+label{display:block;margin:12px 0 6px;font-size:.92rem}
+input,select{background:#10202a;color:white;border:1px solid #43606d;border-radius:9px;padding:12px;width:100%;font:inherit}
+button,.link{display:inline-block;border:1px solid #54717a;border-radius:9px;padding:12px 15px;margin:6px 6px 6px 0;background:#293d4b;color:var(--text);font:inherit;text-decoration:none;cursor:pointer}
+button.primary{background:var(--accent);color:#0b2824;border:0;font-weight:700}
+button:disabled{opacity:.48;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:9px;padding:12px;background:#10232b}
+.stat strong{display:block;font-size:1.55rem}.stat small{color:var(--muted)}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}
+@media(max-width:540px){.fields{grid-template-columns:1fr}}
+ul{padding-left:24px}li{margin:6px 0;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+</style></head><body><main>
+<h1>Lift Journal 2.0 — Private workout test</h1>
+<p class="note"><strong>STAGE 6C2B · EXPERIMENTAL · LOCALHOST ONLY · FICTIONAL DATA</strong></p>
+<section class="card warning" role="note">
+<strong>This is NOT the regular Lift Journal app or full account isolation.</strong>
+This experimental workout-entry page opens your existing encrypted Stage 6C2 test compartment.
+It can add one small fictional workout record to that separate encrypted copy. The real workout app still stores older data unencrypted.
+Do not use real workouts. No legacy import, cloud sync, automatic registration, or original-workout deletion is involved.
+</section>
+<section class="card">
+<h2>Account verification</h2>
+<p id="b-status" class="status" role="status" aria-live="polite">Checking verified Test User and private workout compartment…</p>
+<p class="note">Account: <strong id="b-account">Checking…</strong></p>
+<p id="b-owner" class="note"></p>
+<button id="b-check" type="button">Re-check account and encrypted storage</button>
+<a class="link" href="./private-preview.html">Open account sign-in / sign-out</a>
+</section>
+<section class="card" id="b-unlock-area" hidden>
+<h2>Unlock private workout test</h2>
+<p class="note">Unlock the same separate Stage 6C2 encrypted compartment you tested with 2 workouts and 3 favorites. Your password is never sent to ChatGPT or saved in localStorage by this page.</p>
+<label for="b-unlock-pass">Separate Stage 6B3/6C2 encryption passphrase</label>
+<input id="b-unlock-pass" type="password" autocomplete="off" spellcheck="false" autocapitalize="off">
+<button type="button" id="b-unlock" class="primary">Unlock private workout history</button>
+<button type="button" id="b-lock">Lock now</button>
+</section>
+<section class="card" id="b-private" hidden>
+<h2>Account-private workout data (test compartment only)</h2>
+<p class="note">History below is decrypted only after verification and passphrase entry. Switching tabs, signing out or another account signing in hides it. The original Lift Journal app remains unchanged.</p>
+<div class="stats">
+<div class="stat"><strong id="b-workouts">—</strong><small>Private test workouts</small></div>
+<div class="stat"><strong id="b-favorites">—</strong><small>Private favorite movements</small></div>
+<div class="stat"><strong id="b-revision">—</strong><small>Encrypted revision</small></div>
+<div class="stat"><strong id="b-meals">—</strong><small>Meals preserved</small></div>
+</div>
+<h3>Private workout names</h3><ul id="b-workout-list"></ul>
+<section class="card" style="margin-top:20px" aria-label="Fictional private workout entry">
+<h3>Add a fictional completed workout to the encrypted TEST compartment</h3>
+<p class="note">This is a small initial training-entry test, not the full program/calendar coach. It creates one completed workout with a single movement and chosen sets. You can choose a familiar exercise, but use fictional weight/reps.</p>
+<div class="fields">
+<div><label for="b-date">Workout date</label><input type="date" id="b-date" required></div>
+<div><label for="b-movement">Test movement</label>
+<select id="b-movement">
+<option>Goblet Squat</option><option>Lat Pulldown</option><option>Dumbbell Bench Press</option>
+</select></div>
+<div><label for="b-weight">Fictional weight (current saved unit)</label><input id="b-weight" type="number" min="0" max="9999" step="0.5" value="20"></div>
+<div><label for="b-reps">Reps per set</label><input id="b-reps" type="number" min="1" max="100" step="1" value="10"></div>
+<div><label for="b-sets">Number of sets</label><input id="b-sets" type="number" min="1" max="5" step="1" value="1"></div>
+</div>
+<p class="note" id="b-units">Units come from your encrypted data.</p>
+<label for="b-save-pass">Repeat the separate encryption passphrase to authorize saving</label>
+<input id="b-save-pass" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+<button id="b-review" type="button" class="primary">Review fictional encrypted workout save</button>
+<div id="b-review-box" class="status" hidden>
+<p id="b-review-summary">Review the proposed fictional workout.</p>
+<p class="note">Only the separate Stage 6C2 test copy will change. The original workouts and saved backups are preserved. This is not an automatic cloud upload.</p>
+<button id="b-confirm" type="button" class="primary">Confirm encrypted TEST workout save</button>
+<button id="b-cancel" type="button">Cancel</button>
+</div>
+</section>
+<button id="b-lock-open" type="button">Lock and hide private workout data</button>
+</section>
+<p><a class="link" href="./private-storage-lab.html">Back to Stage 6C2A encrypted storage lab</a></p>
+<p class="note">Stage 6C2B is an experimental partial integration. Full app-wide account isolation, editing existing workouts, a migration and verified restore are NOT yet implemented. Production GitHub Pages stays unchanged.</p>
+</main>
+<script src="./auth-config.js"></script>
+<script type="module" src="./stage6c2b-workout-ui.mjs"></script>
+</body></html>
