@@ -81,6 +81,11 @@ These results are from owner-reported Chrome screenshots and confirmations using
 - **Not yet verified for Stage 6C2A:** wrong-user/Admin restriction in this new lab, wrong-passphrase save refusal in real Chrome, concurrent-tab race, interrupted real write, corrupted-record recovery, and a full v2 backup restore. Earlier Stage 6C1 viewer account-switch tests do not substitute for Stage 6C2A lab testing.
 
 Result: **Stage 6C2A create/unlock/save/reload/original-unchanged path passed owner Chrome tests**. All original plaintext storage persists, so full shared-browser privacy remains **NOT IMPLEMENTED**.
+- **Final account-switch browser results (2026-11-17):** User signed out of the linked Test User and signed into the existing Admin test account. Stage 6C1 private viewer reported `PRIVATE VIEW LOCKED` and Stage 6C2A storage lab reported `PRIVATE STORAGE LOCKED: this browser belongs to another linked test account` with no unlock section, workouts, or favorites displayed. This verifies UI-level owner restriction for this scenario.
+- User signed Admin out, signed the original Test User back in, and saw that the encryption unlock section was restored but data remained hidden pending the separate passphrase.
+- User then unlocked Stage 6C2A again: screenshot verified **2 workouts, 3 favorites, 1 saved meal, revision 2**, including `TEST - Stage 6C2 Encrypted Favorite`. These persisted after account switching.
+- **Owner Chrome scoped Stage 6C2A happy-path test sequence COMPLETE.** This does not establish full app privacy, security audit, off-origin isolation, v2 restore, interrupted-write browser resilience, offline sync, or migration readiness. Keep Draft PR #11 unmerged and production unchanged.
+
 ## Remaining Stage 6C2B / 6C3 release blockers
 
 - Gate the **normal** Lift Journal UI BEFORE any private data is loaded; never initialize sensitive history while signed out or another account is active.
