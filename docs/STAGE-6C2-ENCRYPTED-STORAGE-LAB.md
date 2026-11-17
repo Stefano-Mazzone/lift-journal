@@ -1,6 +1,6 @@
 # Lift Journal 2.0 — Stage 6C2A: encrypted account-storage prototype
 
-**Status:** Implemented in DRAFT PR #11, not deployed. 11/11 mocked storage-state-machine regression checks passed in an isolated JavaScript runner. Browser test and actual Node test-suite run are not yet confirmed. This is **NOT full private mode**.
+**Status:** Implemented in DRAFT PR #11, not deployed. 13/13 mocked storage-state-machine regression checks passed in an isolated JavaScript runner. Browser test and actual Node test-suite run are not yet confirmed. This is **NOT full private mode**.
 
 ## Purpose
 
@@ -11,10 +11,10 @@ Prove a second-generation account-scoped encrypted storage protocol can create, 
 - New `stage6c2-private-storage.mjs`: per-account two-slot encrypted compartment with explicit head pointer, monotonically increasing revision, current-owner check, server identity re-verification callback, Web Locks exclusive per-account writes and exact post-write readback.
 - Uses the existing Stage 6B3 encrypted copy for initial data; decrypts with its existing working passphrase, then re-encrypts for an entirely new Stage 6C2 private compartment. An invalid passphrase does not create any new record.
 - Creation is **add-only**: the original Stage 6B3 copy and the `lift-journal-v1` plaintext record remain untouched. Initial creation is blocked by an incomplete/orphan or existing compartment rather than overwriting it.
-- Normal commits write the inactive slot first, verify it, then update the authoritative head. If interrupted before head update, the previous committed slot remains active. Two slots preserve the previous committed revision; it is never auto-restored if active data is corrupt. Damaged/cross-account/stale state fails closed.
+- Before saving, the passphrase must successfully decrypt the CURRENT committed revision and its decrypted contents must match the caller's previously unlocked snapshot. This prevents a mistyped save passphrase from silently replacing a readable copy. Normal commits write the inactive slot first, verify it, then update the authoritative head. If interrupted before head update, the previous committed slot remains active. Two slots preserve the previous committed revision; it is never auto-restored if active data is corrupt. Damaged/cross-account/stale state fails closed.
 - New `private-storage-lab.html` and `stage6c2-storage-lab.mjs`: localhost-only separate UI for confirmed FULL legacy and encrypted source backups, verified owner, new v2 encrypted copy, read-only counts, and one fictional 'TEST - Stage 6C2 Encrypted Favorite' write to v2 only. Reloading then unlocking should show revision 2 and three favorites; normal Lift Journal still has two favorites.
 - Added a link from `private-preview.html` (the Stage 6C1 private viewer) to the new storage lab. No changes to the normal `index.html` workout save/load code.
-- Add `tests/stage6c2-private-storage.test.mjs`: 11 mocked state-machine checks. AES-GCM/PBKDF2 algorithms are provided by previously implemented Stage 6B vault module; mock tests do **not** replace a full real crypto/Chrome test.
+- Add `tests/stage6c2-private-storage.test.mjs`: 13 mocked state-machine checks. AES-GCM/PBKDF2 algorithms are provided by previously implemented Stage 6B vault module; mock tests do **not** replace a full real crypto/Chrome test.
 
 ### What DOES NOT change
 
