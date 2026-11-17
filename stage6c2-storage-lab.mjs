@@ -18,6 +18,17 @@ let client = null, user = null, unlockedData = null, openedHeadRaw = null;
 let revision = null, busy = false, seq = 0, created = false;
 let savedLegacyBackup = false, savedEncryptedBackup = false;
 let message = "Checking test account…", statusKind = "info";
+let inNativeConfirmation = false;
+
+// Chrome may emit a window-blur event when OUR OWN confirm dialog opens.
+// That is not a tab switch and must not invalidate a consented save. Genuine
+// tab hiding, sign-out, account switches and cross-tab storage changes still
+// invalidate operations; see visibilitychange/storage/auth handlers below.
+function confirmWithoutFalseLock(message) {
+  inNativeConfirmation = true;
+  try { return confirm(message); }
+  finally { inNativeConfirmation = false; }
+}
 
 function status(s, kind = "info") {
   message = s; statusKind = kind;
@@ -79,6 +90,9 @@ async function verifiedId(expected = null, expectedSeq = seq) {
   return serverUser.id;
 }
 async function checkAccount() {
+  // A background auth token refresh cannot reset an active encrypted write.
+  // The storage engine independently re-verifies server identity before commit.
+  if (busy) return;
   const token = ++seq;
   resetPrivateState();
   status("Checking test-account identity and encrypted storage…");
@@ -178,7 +192,7 @@ $("v2-create").addEventListener("click", async () => {
   const passphrase = $("v2-create-pass").value;
   $("v2-create-pass").value = "";
   if (!passphrase) return;
-  if (!confirm("Create an ADDITIONAL encrypted private test compartment for the currently verified Test User? Original Stage 6B copies and local workouts will remain unchanged. No cloud changes."))
+  if (!confirmWithoutFalseLock("Create an ADDITIONAL encrypted private test compartment for the currently verified Test User? Original Stage 6B copies and local workouts will remain unchanged. No cloud changes."))
     return;
   const token = ++seq, id = user.id;
   busy = true; render();
@@ -235,7 +249,7 @@ $("v2-add-fav").addEventListener("click", async () => {
   }
   data.favoriteMovements.push(TEST_FAVORITE);
   const token=++seq,id=user.id,expect=openedHeadRaw;
-  if (!confirm("Save ONE fictional favorite in the separate ENCRYPTED Stage 6C2 test compartment? The original Lift Journal app and Stage 6B backups remain unchanged."))return;
+  if (!confirmWithoutFalseLock("Save ONE fictional favorite in the separate ENCRYPTED Stage 6C2 test compartment? The original Lift Journal app and Stage 6B backups remain unchanged."))return;
   busy=true;render();status("Verifying encrypted save and current account…");
   try {
     const saved=await commitCompartment({
@@ -272,18 +286,25 @@ $("v2-export").addEventListener("click", () => {
 });
 for(const buttonId of ["v2-lock","v2-lock-open"])
   $(buttonId).addEventListener("click",()=>lock("Stage 6C2 private compartment manually locked."));
-window.addEventListener("blur",()=>lock("Private compartment locked when the browser lost focus."));
+window.addEventListener("blur",()=>{
+  // Ignore blur from our own modal confirmation. Never ignore actual tab hiding.
+  if (!inNativeConfirmation) lock("Private compartment locked when the browser lost focus.");
+});
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden)lock("Private compartment locked when this tab was hidden.");
-  else if(client)void checkAccount();
+  else if(client && !busy)void checkAccount();
 });
 window.addEventListener("pagehide",()=>lock("Private compartment locked on navigation."));
 window.addEventListener("storage",event=>{
   if(event.key===null||event.key===AUTH_KEY||event.key===DEVICE_OWNER_KEY||
     event.key===DEVICE_DATA_KEY||event.key?.startsWith("lift-journal-private-v1:")||
     event.key?.startsWith("lift-journal-private-v2:")){
+    // An auth-token refresh from another tab is not an account switch.
+    // For an in-flight creation (no decrypted UI shown), let server re-check
+    // reject a real account change immediately before committing ciphertext.
+    if(event.key===AUTH_KEY && busy && !unlockedData) return;
     lock("Account or storage changed in another tab. Private data locked.");
-    if(client)void checkAccount();
+    if(client && !busy)void checkAccount();
   }
 });
 async function initialize() {
@@ -298,9 +319,19 @@ async function initialize() {
       storageKey:AUTH_KEY,persistSession:true,autoRefreshToken:true,
       detectSessionInUrl:false,flowType:"pkce"
     }});
-    client.auth.onAuthStateChange(()=>{
-      lock("Authentication changed. Private compartment locked.");
-      window.setTimeout(()=>{if(!busy)void checkAccount();},0);
+    client.auth.onAuthStateChange((event, session)=>{
+      const incomingId = session?.user?.id || null;
+      const switched = !!user?.id && !!incomingId && incomingId !== user.id;
+      if (event === "SIGNED_OUT" || switched) {
+        // Fail closed immediately for a true sign-out or different account.
+        user = null;
+        lock("Signed-out or different test account. Private compartment locked.");
+        window.setTimeout(()=>{if(!busy)void checkAccount();},0);
+      } else if (event === "INITIAL_SESSION" && !user && !busy) {
+        window.setTimeout(()=>{if(!busy)void checkAccount();},0);
+      }
+      // TOKEN_REFRESHED and same-user SIGNED_IN must NOT interrupt an
+      // encrypted operation. Every write separately checks getUser() and owner.
     });
     await checkAccount();
   }catch(error){
