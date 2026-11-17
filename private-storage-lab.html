@@ -52,7 +52,13 @@ Nothing here removes, imports, uploads, edits, or automatically syncs your origi
 <p class="note">Enter the NEW working passphrase previously used to unlock your Stage 6B3 recovery copy.</p>
 <label for="v2-create-pass">Separate encryption passphrase (not account password)</label>
 <input type="password" id="v2-create-pass" autocomplete="off" autocapitalize="off" spellcheck="false">
-<button type="button" id="v2-create" class="primary" disabled>Create standalone encrypted TEST compartment (keep all originals)</button>
+<button type="button" id="v2-create" class="primary" disabled>Review encrypted TEST compartment creation</button>
+<div id="v2-create-confirmation" class="status" role="group" aria-label="Confirm encrypted test compartment creation" hidden>
+<p id="v2-create-review">Please review your account and backups.</p>
+<p class="note">Creating this separate encrypted TEST copy will not replace the original Stage 6B encrypted backup, the old local workouts, or any cloud data.</p>
+<button type="button" id="v2-create-final" class="primary">Confirm and create encrypted TEST compartment</button>
+<button type="button" id="v2-create-cancel">Cancel creation</button>
+</div>
 </section>
 <section class="card" id="v2-unlock-area" hidden>
 <h2>Open saved private compartment</h2>
@@ -75,7 +81,12 @@ Nothing here removes, imports, uploads, edits, or automatically syncs your origi
 <p class="note">Next we will test a small, explicitly fictional change. It will be saved only to this encrypted prototype, NOT to the regular app or Stage 6B backups.</p>
 <label for="v2-save-pass">Repeat encryption passphrase to authorize a protected save</label>
 <input type="password" id="v2-save-pass" autocomplete="off" autocapitalize="off" spellcheck="false">
-<button type="button" class="primary" id="v2-add-fav">Save a TEST favorite to encrypted private copy</button>
+<button type="button" class="primary" id="v2-add-fav">Review one encrypted TEST favorite save</button>
+<div id="v2-save-confirmation" class="status" role="group" aria-label="Confirm encrypted test favorite save" hidden>
+<p>Save one fictional favorite in the separate Stage 6C2 encrypted copy only. Existing Lift Journal workouts and Stage 6B backups stay unchanged.</p>
+<button type="button" id="v2-save-final" class="primary">Confirm encrypted TEST favorite save</button>
+<button type="button" id="v2-save-cancel">Cancel save</button>
+</div>
 <button type="button" id="v2-export">Download current encrypted compartment backup (.json)</button>
 <button type="button" id="v2-lock-open">Lock and hide test data</button>
 </section>
