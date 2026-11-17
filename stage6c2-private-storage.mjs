@@ -171,14 +171,26 @@ export async function createCompartment({ storage, userId, passphrase,
   });
 }
 export async function commitCompartment({ storage, userId, passphrase, data,
-  expectedHeadRaw, encrypt = sealVault, decrypt = openVault, reverify, locks }) {
+  expectedData, expectedHeadRaw, encrypt = sealVault, decrypt = openVault, reverify, locks }) {
   ensureStorage(storage);
   requireOwner(storage, userId);
   validateData(data);
+  validateData(expectedData);
   if (await verifiedCall(reverify) !== userId) fail("Current account changed.");
   const ownerRaw = storage.getItem(DEVICE_OWNER_KEY);
-  // Never save against a stale head, even if the decrypted data is otherwise valid.
-  requireHead(storage, userId, expectedHeadRaw);
+  // Prove the supplied passphrase also opens the CURRENT committed revision.
+  // Otherwise a typo would encrypt the next revision with a DIFFERENT password.
+  const before = requireHead(storage, userId, expectedHeadRaw);
+  const keys = compartmentKeys(userId);
+  const activeAtStart = storage.getItem(keys.slots[before.slot]);
+  const oldRecord = parseSlot(activeAtStart, userId, before.revision);
+  const oldData = validateData(await decrypt({
+    userId, passphrase, encryptedRecord: oldRecord.sealed
+  }));
+  if (JSON.stringify(oldData) !== JSON.stringify(expectedData))
+    fail("The unlocked starting data differs from the committed copy. Reload before saving.");
+  if (await verifiedCall(reverify) !== userId)
+    fail("Account changed while verifying the existing encryption passphrase.");
   const sealed = await encrypt({ userId, passphrase, data });
   const roundtrip = validateData(await decrypt({ userId, passphrase, encryptedRecord: sealed }));
   if (JSON.stringify(roundtrip) !== JSON.stringify(data))
@@ -189,8 +201,9 @@ export async function commitCompartment({ storage, userId, passphrase, data,
     const current = requireHead(storage, userId, expectedHeadRaw);
     if (current.revision >= MAX_REVISIONS) fail("Private storage revision limit reached.");
     const inactive = 1 - current.slot;
-    const keys = compartmentKeys(userId);
     const activeRaw = storage.getItem(keys.slots[current.slot]);
+    if (activeRaw !== activeAtStart)
+      fail("Active encrypted data changed in another tab. Reload before saving.");
     const newRevision = current.revision + 1;
     const record = slotRecord(userId, newRevision, sealed);
     const headRaw = headRecord(userId, newRevision, inactive);
