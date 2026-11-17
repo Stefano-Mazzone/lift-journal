@@ -1,5 +1,5 @@
 // node --test tests/stage6c2-storage-lab-ui.test.mjs
-// Simulated native confirmation-window blur and same-owner auth token refresh.
+// Simulated inline user confirmation, account refresh and privacy locking.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,9 +13,12 @@ function mockLab(){
  'return {initialize,',
  'setReady(){savedLegacyBackup=true;savedEncryptedBackup=true;',
  '$("v2-ack").checked=true;$("v2-create-pass").value="fictional passphrase";render();},',
- 'clickCreate:()=> $("v2-create")._events.click(),',
+ 'clickReview:()=> $("v2-create")._events.click(),',
+ 'clickConfirm:()=> $("v2-create-final")._events.click(),',
+ 'clickCancel:()=> $("v2-create-cancel")._events.click(),',
  'setUnlocked(){unlockedData={unit:"kg",sessions:{}};$("v2-data").hidden=false;},',
- 'getState(){return {message:$("v2-status").textContent,created,busy,seq,historyHidden:$("v2-data").hidden};},',
+ 'getState(){return {message:$("v2-status").textContent,created,busy,seq,historyHidden:$("v2-data").hidden,',
+ 'reviewVisible:!$("v2-create-confirmation").hidden,createPass:$("v2-create-pass").value};},',
  'authEvent:(event,who)=>fakeClient.notify(event,who)};'
  ].join("\n");
  const elements=new Map(),listeners={};
@@ -45,7 +48,8 @@ function mockLab(){
    return {data:{user},error:null};
   }
  },notify:(event,who)=>authCallback?.(event,who?{user:who}:null)};
- const confirm=()=>{for(const fn of listeners.blur||[])fn();return true};
+ // Native confirm is forbidden in Stage 6C2A. Any code path using it fails the test.
+ const confirm=()=>{throw Error("Unexpected native confirm dialog.");};
  const createCompartment=async({reverify})=>{
   creates++;assert.equal(await reverify(),ID);return {revision:1,workouts:2,favorites:2};
  };
@@ -60,15 +64,42 @@ function mockLab(){
  );
  return {lab,listeners,counts:()=>creates};
 }
-test("native confirmation blur and same-user auth refresh do not abort safe encrypted creation",async()=>{
+test("inline review makes no writes, then final click creates despite same-owner auth refresh",async()=>{
  const {lab,counts}=mockLab();
  await lab.initialize();
  lab.setReady();
- await lab.clickCreate();
+ await lab.clickReview();
+ assert.equal(counts(),0);
+ assert.equal(lab.getState().created,false);
+ assert.equal(lab.getState().reviewVisible,true);
+ assert.match(lab.getState().message,/Review prepared/);
+ await lab.clickConfirm();
  assert.equal(counts(),1);
  assert.equal(lab.getState().created,true);
  assert.equal(lab.getState().busy,false);
  assert.match(lab.getState().message,/created and verified \(revision 1\)/);
+});
+test("cancelling inline review makes no encrypted writes",async()=>{
+ const {lab,counts}=mockLab();
+ await lab.initialize();
+ lab.setReady();
+ await lab.clickReview();
+ await lab.clickCancel();
+ assert.equal(counts(),0);
+ assert.equal(lab.getState().created,false);
+ assert.equal(lab.getState().reviewVisible,false);
+ assert.equal(lab.getState().createPass,"");
+});
+test("window blur without exposed decrypted data preserves the creation success result",async()=>{
+ const {lab,counts,listeners}=mockLab();
+ await lab.initialize();
+ lab.setReady();
+ await lab.clickReview();
+ await lab.clickConfirm();
+ assert.equal(counts(),1);
+ for(const fn of listeners.blur||[])fn();
+ assert.match(lab.getState().message,/created and verified \(revision 1\)/);
+ assert.equal(lab.getState().created,true);
 });
 test("real window blur still hides decrypted private information",async()=>{
  const {lab,listeners}=mockLab();
