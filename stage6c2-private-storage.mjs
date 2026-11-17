@@ -132,6 +132,8 @@ export async function createCompartment({ storage, userId, passphrase,
   // Fail before doing crypto if any existing v2 compartment or orphan exists.
   const first = inspectCompartment(storage, userId);
   if (first.exists) fail("Private compartment already exists. Nothing was overwritten.");
+  if (await verifiedCall(reverify) !== userId)
+    fail("Only the server-verified linked owner may create a private compartment.");
   const legacyRaw = storage.getItem(DEVICE_DATA_KEY);
   const ownerRaw = storage.getItem(DEVICE_OWNER_KEY);
   const sources = vaultLocations(userId).map(k => storage.getItem(k));
