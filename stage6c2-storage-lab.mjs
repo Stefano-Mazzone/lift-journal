@@ -18,17 +18,9 @@ let client = null, user = null, unlockedData = null, openedHeadRaw = null;
 let revision = null, busy = false, seq = 0, created = false;
 let savedLegacyBackup = false, savedEncryptedBackup = false;
 let message = "Checking test account…", statusKind = "info";
-let inNativeConfirmation = false;
-
-// Chrome may emit a window-blur event when OUR OWN confirm dialog opens.
-// That is not a tab switch and must not invalidate a consented save. Genuine
-// tab hiding, sign-out, account switches and cross-tab storage changes still
-// invalidate operations; see visibilitychange/storage/auth handlers below.
-function confirmWithoutFalseLock(message) {
-  inNativeConfirmation = true;
-  try { return confirm(message); }
-  finally { inNativeConfirmation = false; }
-}
+// Explicit two-step review replaces native confirm() entirely.
+// Review forms never write; final clicks always rerun owner/server/storage checks.
+let createReview = false, saveReview = false;
 
 function status(s, kind = "info") {
   message = s; statusKind = kind;
@@ -36,6 +28,8 @@ function status(s, kind = "info") {
   $("v2-status").dataset.kind = kind;
 }
 function resetPrivateState() {
+  createReview = false;
+  saveReview = false;
   unlockedData = null;
   openedHeadRaw = null;
   revision = null;
@@ -62,17 +56,26 @@ function render() {
     "Account verified and device link active." :
     "PRIVATE STORAGE LOCKED until you sign into the original linked Test User.";
   $("v2-create-area").hidden = !canUse || created;
+  $("v2-create-confirmation").hidden = !canUse || created || !createReview;
+  $("v2-save-confirmation").hidden = !canUse || !unlockedData || !saveReview;
   $("v2-unlock-area").hidden = !canUse || !created;
   if (!canUse) resetPrivateState();
   $("v2-check").disabled = busy || !client;
   $("v2-backup-legacy").disabled = busy;
   $("v2-backup-encrypted").disabled = busy;
   $("v2-ack").disabled = !(savedLegacyBackup && savedEncryptedBackup) || busy;
-  $("v2-create").disabled = busy || !canUse || !savedLegacyBackup ||
+  $("v2-create").disabled = busy || createReview || !canUse || !savedLegacyBackup ||
     !savedEncryptedBackup || !$("v2-ack").checked ||
     !$("v2-create-pass").value;
+  $("v2-create-final").disabled = busy || !createReview || !canUse ||
+    !savedLegacyBackup || !savedEncryptedBackup || !$("v2-ack").checked ||
+    !$("v2-create-pass").value;
+  $("v2-create-cancel").disabled = busy;
   $("v2-unlock").disabled = busy || !canUse || !$("v2-pass").value;
-  $("v2-add-fav").disabled = busy || !canUse || !unlockedData || !$("v2-save-pass").value;
+  $("v2-add-fav").disabled = busy || saveReview || !canUse || !unlockedData || !$("v2-save-pass").value;
+  $("v2-save-final").disabled = busy || !saveReview || !canUse ||
+    !unlockedData || !$("v2-save-pass").value;
+  $("v2-save-cancel").disabled = busy;
   $("v2-export").disabled = busy || !canUse || !unlockedData;
   $("v2-lock").disabled = busy;
   $("v2-lock-open").disabled = busy;
@@ -187,16 +190,34 @@ $("v2-backup-encrypted").addEventListener("click", () => {
   } catch (error) {status("Backup stopped: " + error.message, "error");}
   render();
 });
-$("v2-create").addEventListener("click", async () => {
-  if (busy || !linked() || !savedLegacyBackup || !savedEncryptedBackup || !$("v2-ack").checked) return;
+$("v2-create").addEventListener("click", () => {
+  if (busy || !linked() || created || !savedLegacyBackup || !savedEncryptedBackup ||
+      !$("v2-ack").checked || !$("v2-create-pass").value) return;
+  createReview = true;
+  $("v2-create-review").textContent =
+    "Verified linked account: " + (user.email || "Test User") +
+    ". Both fresh safety downloads acknowledged. Final confirmation will copy the" +
+    " working Stage 6B encrypted data into a SEPARATE Stage 6C2 encrypted compartment.";
+  status("Review prepared. No encrypted compartment was created yet. Use the inline Confirm or Cancel button.", "info");
+  render();
+});
+$("v2-create-cancel").addEventListener("click", () => {
+  if (busy) return;
+  createReview = false;
+  $("v2-create-pass").value = "";
+  status("Encrypted compartment creation cancelled. No storage changes made.");
+  render();
+});
+$("v2-create-final").addEventListener("click", async () => {
+  if (!createReview || busy || !linked() || created ||
+      !savedLegacyBackup || !savedEncryptedBackup || !$("v2-ack").checked) return;
   const passphrase = $("v2-create-pass").value;
   $("v2-create-pass").value = "";
-  if (!passphrase) return;
-  if (!confirmWithoutFalseLock("Create an ADDITIONAL encrypted private test compartment for the currently verified Test User? Original Stage 6B copies and local workouts will remain unchanged. No cloud changes."))
-    return;
+  if (!passphrase) { createReview = false; render(); return; }
+  createReview = false;
   const token = ++seq, id = user.id;
   busy = true; render();
-  status("Verifying account and writing encrypted copy…");
+  status("Encrypting test compartment. Account identity, passphrase and storage are being verified…");
   try {
     const saved = await createCompartment({
       storage: localStorage, userId: id, passphrase, locks: navigator.locks,
@@ -211,9 +232,11 @@ $("v2-create").addEventListener("click", async () => {
   } catch (error) {
     if (token !== seq) return;
     resetPrivateState();
-    status("Create stopped without touching original history: " + (error?.message || "Unknown error"), "error");
-    try {created=inspectCompartment(localStorage,id).exists;}catch{created=false;}
-  } finally { if (token === seq) {busy=false;render();} }
+    status("Creation failed safely: " + (error?.message || "Unknown error") +
+      ". Original workouts and encrypted sources were not overwritten. Do not retry before reviewing this error.", "error");
+    try { created = inspectCompartment(localStorage, id).exists; }
+    catch { created = false; }
+  } finally { if (token === seq) { busy = false; render(); } }
 });
 $("v2-unlock").addEventListener("click", async () => {
   if (busy || !linked() || !created) return;
@@ -235,41 +258,67 @@ $("v2-unlock").addEventListener("click", async () => {
     if(token===seq){resetPrivateState();status("Unlock stopped: "+(error?.message||"Unknown error"),"error");}
   }finally {if(token===seq){busy=false;render();}}
 });
-$("v2-add-fav").addEventListener("click", async () => {
-  if (busy || !linked() || !unlockedData || !openedHeadRaw) return;
-  const passphrase=$("v2-save-pass").value;
-  $("v2-save-pass").value="";
-  if (!passphrase) return;
-  const startingData=unlockedData;
-  const data=JSON.parse(JSON.stringify(startingData));
-  data.favoriteMovements=Array.isArray(data.favoriteMovements)?data.favoriteMovements:[];
+$("v2-add-fav").addEventListener("click", () => {
+  if (busy || !linked() || !unlockedData || !openedHeadRaw ||
+      !$("v2-save-pass").value) return;
+  const favorites = unlockedData.favoriteMovements;
+  if (Array.isArray(favorites) && favorites.includes(TEST_FAVORITE)) {
+    $("v2-save-pass").value = "";
+    status("The fictional Stage 6C2 test favorite was already saved. No duplicate added.", "info");
+    render(); return;
+  }
+  saveReview = true;
+  status("Review prepared. No favorite was saved yet. Confirm the encrypted TEST favorite addition below.");
+  render();
+});
+$("v2-save-cancel").addEventListener("click", () => {
+  if (busy) return;
+  saveReview = false;
+  $("v2-save-pass").value = "";
+  status("Encrypted test favorite save cancelled. No data changed.");
+  render();
+});
+$("v2-save-final").addEventListener("click", async () => {
+  if (!saveReview || busy || !linked() || !unlockedData || !openedHeadRaw) return;
+  const passphrase = $("v2-save-pass").value;
+  $("v2-save-pass").value = "";
+  if (!passphrase) { saveReview = false; render(); return; }
+  saveReview = false;
+  const startingData = unlockedData;
+  const data = JSON.parse(JSON.stringify(startingData));
+  data.favoriteMovements = Array.isArray(data.favoriteMovements) ? data.favoriteMovements : [];
   if (data.favoriteMovements.includes(TEST_FAVORITE)) {
-    status("The fictional Stage 6C2 test favorite was already saved. No duplicate added.","info");
-    render();return;
+    status("The test favorite is already present; no duplicate saved.");
+    render(); return;
   }
   data.favoriteMovements.push(TEST_FAVORITE);
-  const token=++seq,id=user.id,expect=openedHeadRaw;
-  if (!confirmWithoutFalseLock("Save ONE fictional favorite in the separate ENCRYPTED Stage 6C2 test compartment? The original Lift Journal app and Stage 6B backups remain unchanged."))return;
-  busy=true;render();status("Verifying encrypted save and current account…");
+  const token = ++seq, id = user.id, expect = openedHeadRaw;
+  busy = true; render();
+  status("Verifying current passphrase and saving encrypted test favorite…");
   try {
-    const saved=await commitCompartment({
-      storage:localStorage,userId:id,passphrase,data,expectedData:startingData,expectedHeadRaw:expect,
-      reverify:()=>verifiedId(id,token),locks:navigator.locks
+    const saved = await commitCompartment({
+      storage: localStorage, userId: id, passphrase, data,
+      expectedData: startingData, expectedHeadRaw: expect,
+      reverify: () => verifiedId(id, token), locks: navigator.locks
     });
-    if(token!==seq)return;
-    const reopened=await openCompartment({
-      storage:localStorage,userId:id,passphrase,
-      reverify:()=>verifiedId(id,token)
+    if (token !== seq) return;
+    const reopened = await openCompartment({
+      storage: localStorage, userId: id, passphrase,
+      reverify: () => verifiedId(id, token)
     });
-    if(reopened.headRaw!==saved.headRaw)throw Error("Reloaded saved revision differs. Stop testing.");
-    if(token!==seq)return;
-    previewData(reopened.data,reopened.revision,reopened.headRaw);
-    status("Encrypted favorite saved and read back successfully at revision "+saved.revision+
-      ". Now reload this page and unlock again to verify persistence.", "success");
-  }catch(error) {
-    if(token===seq){resetPrivateState();status("Encrypted save could not be confirmed: "+
-      (error?.message||"Unknown error")+". No legacy history was touched. Re-open compartment to inspect.", "error");}
-  }finally{if(token===seq){busy=false;render();}}
+    if (reopened.headRaw !== saved.headRaw)
+      throw Error("Reloaded saved revision differs. Stop testing.");
+    if (token !== seq) return;
+    previewData(reopened.data, reopened.revision, reopened.headRaw);
+    status("Encrypted favorite saved and read back successfully at revision " + saved.revision +
+      ". Reload the page and unlock again to verify persistence.", "success");
+  } catch (error) {
+    if (token === seq) {
+      resetPrivateState();
+      status("Encrypted save could not be confirmed: " + (error?.message || "Unknown error") +
+        ". No legacy history was touched. Re-open compartment to inspect.", "error");
+    }
+  } finally { if (token === seq) { busy = false; render(); } }
 });
 $("v2-export").addEventListener("click", () => {
   try {
@@ -286,9 +335,19 @@ $("v2-export").addEventListener("click", () => {
 });
 for(const buttonId of ["v2-lock","v2-lock-open"])
   $(buttonId).addEventListener("click",()=>lock("Stage 6C2 private compartment manually locked."));
-window.addEventListener("blur",()=>{
-  // Ignore blur from our own modal confirmation. Never ignore actual tab hiding.
-  if (!inNativeConfirmation) lock("Private compartment locked when the browser lost focus.");
+window.addEventListener("blur", () => {
+  // There is no native confirm() anymore. If decrypted history is on-screen,
+  // losing focus immediately hides it. If no data is displayed, do not erase
+  // creation diagnostics just because another window (e.g. screenshot tool)
+  // gained focus. A genuinely hidden tab still invalidates an active operation.
+  if (unlockedData) {
+    lock("Private compartment locked when the browser lost focus.");
+  } else if (!busy) {
+    createReview = false;
+    saveReview = false;
+    for (const id of ["v2-create-pass", "v2-pass", "v2-save-pass"]) $(id).value = "";
+    render();
+  }
 });
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden)lock("Private compartment locked when this tab was hidden.");
