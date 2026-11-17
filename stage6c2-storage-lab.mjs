@@ -226,7 +226,8 @@ $("v2-add-fav").addEventListener("click", async () => {
   const passphrase=$("v2-save-pass").value;
   $("v2-save-pass").value="";
   if (!passphrase) return;
-  const data=JSON.parse(JSON.stringify(unlockedData));
+  const startingData=unlockedData;
+  const data=JSON.parse(JSON.stringify(startingData));
   data.favoriteMovements=Array.isArray(data.favoriteMovements)?data.favoriteMovements:[];
   if (data.favoriteMovements.includes(TEST_FAVORITE)) {
     status("The fictional Stage 6C2 test favorite was already saved. No duplicate added.","info");
@@ -238,7 +239,7 @@ $("v2-add-fav").addEventListener("click", async () => {
   busy=true;render();status("Verifying encrypted save and current account…");
   try {
     const saved=await commitCompartment({
-      storage:localStorage,userId:id,passphrase,data,expectedHeadRaw:expect,
+      storage:localStorage,userId:id,passphrase,data,expectedData:startingData,expectedHeadRaw:expect,
       reverify:()=>verifiedId(id,token),locks:navigator.locks
     });
     if(token!==seq)return;
