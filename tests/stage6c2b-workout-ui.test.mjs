@@ -8,7 +8,7 @@ const source=readFileSync(new URL("../stage6c2b-workout-ui.mjs",import.meta.url)
 function setup(account="test-user") {
  let js=source.replace(/^import[\s\S]*?from .*?;\n/gm,"")
    .replace('await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm")',
-      "{createClient:()=>client}");
+      "{createClient:()=>fakeClient}");
  js=js.replace(/\nrender\(\);\nvoid init\(\);\s*$/,"")+
  [
  "return {init,click:id=>$(id)._events.click(),",
@@ -50,7 +50,7 @@ function setup(account="test-user") {
  nutrition:{entries:{"2026-10-20":[{name:"TEST meal"}]}}};
  const compartment={data:JSON.parse(JSON.stringify(original)),revision:2,headRaw:"head-2"};
  let writes=0,authHandler=null,refresh=true;
- const client={auth:{
+ const fakeClient={auth:{
   async getSession(){return {data:{session:{user}},error:null}},
   async getUser(){
    if(writes && refresh){refresh=false;authHandler?.("TOKEN_REFRESHED",{user});}
@@ -81,11 +81,11 @@ function setup(account="test-user") {
  const app=new Function("window","document","location","localStorage","navigator","crypto",
    "inspectCompartment","openCompartment","commitCompartment",
    "DEVICE_OWNER_KEY","deviceOwnerStatus","buildPrivateSnapshot",
-   "buildFictionalPrivateWorkout","client",js)(
+   "buildFictionalPrivateWorkout","fakeClient",js)(
    window,document,{hostname:"127.0.0.1"},localStorage,{locks:{}},crypto,
    ()=>({exists:true}),open,commit,"owner-key",
    (_s,id)=>({status:id==="test-user"?"linked":"other-account"}),
-   snapshot,buildFictionalPrivateWorkout,client);
+   snapshot,buildFictionalPrivateWorkout,fakeClient);
  return {app,events,writes:()=>writes,original,compartment};
 }
 test("private workout view is locked before passphrase; reveals only verified owner's data",async()=>{
