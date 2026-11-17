@@ -63,7 +63,7 @@ test("two write slots preserve older committed record and reopen latest save",as
   const data=structuredClone(earlier.data);
   data.favoriteMovements.push("TEST - new favorite");
   const saved=await commitCompartment({storage,userId:ID,passphrase:"fictional safe passphrase",
-    data,expectedHeadRaw:earlier.headRaw,encrypt,decrypt,reverify:async()=>ID,locks});
+    data,expectedData:earlier.data,expectedHeadRaw:earlier.headRaw,encrypt,decrypt,reverify:async()=>ID,locks});
   assert.equal(saved.revision,2);
   assert.equal(JSON.parse(storage.getItem(compartmentKeys(ID).slots[0])).revision,1);
   const result=await open();
@@ -77,10 +77,10 @@ test("stale tab save is rejected and cannot overwrite a newer revision",async()=
   const data=structuredClone(old.data);
   data.favoriteMovements.push("save1");
   await commitCompartment({storage,userId:ID,passphrase:"fictional safe passphrase",
-    data,expectedHeadRaw:old.headRaw,encrypt,decrypt,reverify:async()=>ID,locks});
+    data,expectedData:old.data,expectedHeadRaw:old.headRaw,encrypt,decrypt,reverify:async()=>ID,locks});
   const newHead=storage.getItem(compartmentKeys(ID).head);
   await assert.rejects(()=>commitCompartment({storage,userId:ID,
-    passphrase:"fictional safe passphrase",data,expectedHeadRaw:old.headRaw,
+    passphrase:"fictional safe passphrase",data,expectedData:old.data,expectedHeadRaw:old.headRaw,
     encrypt,decrypt,reverify:async()=>ID,locks}),/changed in another tab/);
   assert.equal(storage.getItem(compartmentKeys(ID).head),newHead);
 });
@@ -92,7 +92,7 @@ test("failed inactive-slot write keeps last committed head and content",async()=
   const data=structuredClone(old.data);data.favoriteMovements.push("will not save");
   storage.blocked.add(keys.slots[1]);
   await assert.rejects(()=>commitCompartment({storage,userId:ID,
-    passphrase:"fictional safe passphrase",data,expectedHeadRaw:old.headRaw,
+    passphrase:"fictional safe passphrase",data,expectedData:old.data,expectedHeadRaw:old.headRaw,
     encrypt,decrypt,reverify:async()=>ID,locks}),/Simulated quota/);
   assert.equal(storage.getItem(keys.head),old.headRaw);
   assert.equal(storage.getItem(keys.slots[0]),active);
@@ -106,7 +106,7 @@ test("failed head write keeps prior valid head without modifying active slot",as
   const data=structuredClone(old.data);data.favoriteMovements.push("orphan uncommitted");
   storage.blocked.add(keys.head);
   await assert.rejects(()=>commitCompartment({storage,userId:ID,
-    passphrase:"fictional safe passphrase",data,expectedHeadRaw:old.headRaw,
+    passphrase:"fictional safe passphrase",data,expectedData:old.data,expectedHeadRaw:old.headRaw,
     encrypt,decrypt,reverify:async()=>ID,locks}),/Simulated quota/);
   assert.equal(storage.getItem(keys.head),old.headRaw);
   assert.equal(storage.getItem(keys.slots[0]),currentSlot);
@@ -120,7 +120,7 @@ test("owner mismatch or failed server account verification refuses reads and wri
   await assert.rejects(()=>open({reverify:async()=>OTHER}),/Current account/);
   const prior=await open();
   await assert.rejects(()=>commitCompartment({storage,userId:ID,
-    passphrase:"fictional safe passphrase",data:prior.data,expectedHeadRaw:head,
+    passphrase:"fictional safe passphrase",data:prior.data,expectedData:prior.data,expectedHeadRaw:head,
     encrypt,decrypt,reverify:async()=>OTHER,locks}),/Current account/);
   assert.equal(storage.getItem(compartmentKeys(ID).head),head);
 });
@@ -145,7 +145,7 @@ test("refuses save without Web Locks support; no opportunistic unsafe fallback",
   await create();
   const old=await open();
   await assert.rejects(()=>commitCompartment({storage,userId:ID,
-    passphrase:"fictional safe passphrase",data:old.data,expectedHeadRaw:old.headRaw,
+    passphrase:"fictional safe passphrase",data:old.data,expectedData:old.data,expectedHeadRaw:old.headRaw,
     encrypt,decrypt,reverify:async()=>ID,locks:null}),/Exclusive browser storage locks/);
   assert.equal(storage.getItem(compartmentKeys(ID).head),old.headRaw);
 });
@@ -165,4 +165,37 @@ test("source backup mutation during expensive encryption blocks creating the com
   };
   await assert.rejects(()=>create({encrypt:altered}),/Original local history or encrypted copy changed/);
   assert.equal(storage.getItem(compartmentKeys(ID).head),null);
+});
+
+test("mistyped save passphrase cannot replace a previously readable encrypted revision",async()=>{
+  const {storage,create,open}=setup();
+  await create();
+  const current=await open(),keys=compartmentKeys(ID);
+  const oldHead=storage.getItem(keys.head);
+  const oldSlot=storage.getItem(keys.slots[0]);
+  const data=structuredClone(current.data);
+  data.favoriteMovements.push("should never save");
+  const rejectWrongPassword=async args=>{
+    if(args.passphrase!=="fictional safe passphrase")
+      throw Error("Current encrypted copy could not be unlocked with that passphrase.");
+    return decrypt(args);
+  };
+  await assert.rejects(()=>commitCompartment({storage,userId:ID,
+    passphrase:"mistyped passphrase",data,expectedData:current.data,
+    expectedHeadRaw:current.headRaw,encrypt,decrypt:rejectWrongPassword,
+    reverify:async()=>ID,locks}),/could not be unlocked/);
+  assert.equal(storage.getItem(keys.head),oldHead);
+  assert.equal(storage.getItem(keys.slots[0]),oldSlot);
+  assert.equal(storage.getItem(keys.slots[1]),null);
+});
+test("does not save when the decrypted starting data has changed without a new unlock",async()=>{
+  const {storage,create,open}=setup();
+  await create();
+  const current=await open(),keys=compartmentKeys(ID),head=storage.getItem(keys.head);
+  const wrongStartingData={...current.data,favoriteMovements:["different"]};
+  await assert.rejects(()=>commitCompartment({storage,userId:ID,
+    passphrase:"fictional safe passphrase",data:current.data,
+    expectedData:wrongStartingData,expectedHeadRaw:current.headRaw,
+    encrypt,decrypt,reverify:async()=>ID,locks}),/unlocked starting data differs/);
+  assert.equal(storage.getItem(keys.head),head);
 });
