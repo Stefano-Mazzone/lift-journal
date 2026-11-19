@@ -41,6 +41,12 @@ Stage 6C2A encrypted Test User compartment: **2 workouts, 3 favorites, 1 meal, e
 - Opened original `index.html` and user explicitly reported **PASSED** for **2 original fictional workouts and 2 saved favorites**, confirming the Stage 6C2B encrypted test write did not alter the legacy app's displayed data.
 - Owner confirmed completion of fresh **Stage 6C2A v2 encrypted compartment JSON backup download** after verifying the revision-3 compartment. The downloaded file itself has not been independently inspected and the v2 restore pathway is not yet implemented/tested.
 - This verifies the single-user, single-tab save/reload and original-data-isolation test case only. It is **not** evidence of full original-app privacy or completed multi-account/negative-case browser tests for Stage 6C2B. Complete remaining failure-mode tests before further migration steps.
+## Owner Chrome negative test — incorrect encryption passphrase
+
+- On Nov 18/19, 2026 local browser testing, the owner unlocked the correct linked Test User's Stage 6C2B compartment at **encrypted revision 3**. They reviewed a fictional new Goblet Squat workout while intentionally entering `WRONG-TEST-PASSPHRASE-123` in the *save authorization* passphrase field. The inline review appeared (review only validates the entry, not the passphrase), but no write occurs until final confirmation.
+- On clicking **Confirm encrypted TEST workout save**, Stage 6C2B rejected the save, showing: `Private workout save not confirmed: Unable to unlock vault. Check account and passphrase; no data was changed. No original workout key was written. Reopen and inspect before any retry.`
+- The user then used the correct separate passphrase to reopen the compartment. Screenshot verified **3 workouts, 3 favorites, 1 meal, encrypted revision 3**, with `TEST - Stage 6C2B Private Workout` present exactly once and the two earlier workouts retained. **Incorrect-passphrase save rejection and data integrity test PASSED.**
+- This is a single negative-path browser test; broader security, multi-tab race, interrupted commits, quota limits, cross-account Stage 6C2B browser checks and full-app encryption remain untested.
 ## Release blockers — not done
 
 - Regular `index.html` still loads plaintext `lift-journal-v1` before authentication; user switching accounts in the original app can see that data. Full privacy NOT achieved.
