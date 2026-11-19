@@ -1,6 +1,6 @@
 # Lift Journal 2.0 — Stage 6C2B private workout-entry test
 
-**Status (November 18, 2026):** Draft PR #11 implementation completed; **owner Chrome happy-path save, reload and original-data-isolation checks passed.** Eight isolated pure-schema/static checks and five mocked UI checks passed; full Node suite not executed in this environment. Production unchanged and PR remains draft. A refreshed encrypted v2 backup after revision 3 is not yet confirmed.
+**Status (November 18, 2026):** Draft PR #11 implementation completed; **owner Chrome happy-path save, reload and original-data-isolation checks passed.** Eight isolated pure-schema/static checks and five mocked UI checks passed; full Node suite not executed in this environment. Production unchanged and PR remains draft. Owner reports downloading a fresh encrypted v2 backup following revision 3; restoration is still untested.
 
 ## Why this is separate instead of modifying the main app
 
@@ -39,7 +39,8 @@ Stage 6C2A encrypted Test User compartment: **2 workouts, 3 favorites, 1 meal, e
 - Using the inline review/confirmation, saved a fictional completed **Goblet Squat** workout dated **2026-11-18** with **20 kg × 10 reps, 1 set**. Screenshot showed successful encrypted write and independent readback at **revision 3**, with **3 workouts, 3 favorites, 1 meal**.
 - Hard-refreshed the browser and unlocked again. Screenshot showed **revision 3, 3 workouts, 3 favorites, 1 meal**, and `TEST - Stage 6C2B Private Workout · 2026-11-18 · Goblet Squat` alongside the two earlier records. No duplicate.
 - Opened original `index.html` and user explicitly reported **PASSED** for **2 original fictional workouts and 2 saved favorites**, confirming the Stage 6C2B encrypted test write did not alter the legacy app's displayed data.
-- This verifies the single-user, single-tab save/reload and original-data-isolation test case only. It is **not** evidence of full original-app privacy or completed multi-account/negative-case browser tests for Stage 6C2B. Await revision-3 encrypted export and remaining failure-mode tests before further migration steps.
+- Owner confirmed completion of fresh **Stage 6C2A v2 encrypted compartment JSON backup download** after verifying the revision-3 compartment. The downloaded file itself has not been independently inspected and the v2 restore pathway is not yet implemented/tested.
+- This verifies the single-user, single-tab save/reload and original-data-isolation test case only. It is **not** evidence of full original-app privacy or completed multi-account/negative-case browser tests for Stage 6C2B. Complete remaining failure-mode tests before further migration steps.
 ## Release blockers — not done
 
 - Regular `index.html` still loads plaintext `lift-journal-v1` before authentication; user switching accounts in the original app can see that data. Full privacy NOT achieved.
