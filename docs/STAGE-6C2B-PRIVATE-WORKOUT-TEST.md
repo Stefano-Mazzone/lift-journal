@@ -51,7 +51,7 @@ Stage 6C2A encrypted Test User compartment: **2 workouts, 3 favorites, 1 meal, e
 
 - Owner signed out of original linked Test User and signed in to the existing Admin test account. Stage 6C1 read-only viewer correctly showed `PRIVATE VIEW LOCKED` for the Admin account.
 - In Stage 6C2B `private-workout-test.html`, screenshot showed **`PRIVATE WORKOUT LOCKED: this browser's encrypted test history belongs to a different linked account.`** The encrypted unlock field, workout titles, history counts and workout-entry controls were all hidden. **Admin account restriction browser scenario PASSED.**
-- Still pending: Admin sign-out, original Test User sign-in, encrypted revision 3 data re-unlock/preservation verification after account switching; other failure scenarios and real original-app account isolation remain untested.
+- **Original linked Test User recovery after Admin switching PASSED:** owner signed Admin out and signed original Test User back in. Stage 6C1 showed older separate recovery copy (2 workouts, 2 favorites) as expected. Opening and unlocking the correct Stage 6C2B private workout test then showed **3 encrypted workouts, 3 favorites, 1 meal, revision 3** with all three fictional workout titles, including exactly one `TEST - Stage 6C2B Private Workout`. Screenshot verifies recovery in the separate encrypted v2 compartment after account switching. Other failure modes, race tests and real original-app account isolation remain untested.
 ## Release blockers — not done
 
 - Regular `index.html` still loads plaintext `lift-journal-v1` before authentication; user switching accounts in the original app can see that data. Full privacy NOT achieved.
