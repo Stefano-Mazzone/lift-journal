@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Lift Journal 2.0 — Private History & Movements Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#0b121a;--panel:#162830;--pane:#10222a;--line:#38525e;--text:#edf6f7;--muted:#b2c3c7;--accent:#91edbd}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Arial,sans-serif;margin:0}
+main{max-width:950px;margin:auto;padding:18px 16px 76px}
+h1{font-size:1.55rem;margin:5px 0 0}h2{font-size:1.15rem;margin:0 0 10px}h3{font-size:1rem;margin:0}
+p{margin:8px 0 12px}.eyebrow{font-size:.76rem;color:var(--accent);font-weight:700;letter-spacing:.075em}
+.note{color:var(--muted);font-size:.9rem}
+.card{border-radius:15px;border:1px solid var(--line);background:var(--panel);padding:18px;margin:0 0 15px}
+.warning{background:#302f2a;border-left:4px solid #dbb86d}
+.status{border-radius:9px;border:1px solid var(--line);padding:12px;min-height:46px;overflow-wrap:anywhere}
+.status[data-kind=error]{border-color:#bb6068;color:#ffbec3}
+.status[data-kind=success]{border-color:#69b28d;color:#acf5d0}
+button,.link{display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;background:#29404e;color:var(--text);border:1px solid #597580;border-radius:10px;padding:11px 14px;margin:6px 6px 6px 0;text-decoration:none;font:inherit}
+button.primary{background:var(--accent);color:#08291c;border-color:var(--accent);font-weight:700}
+button:disabled{opacity:.45;cursor:not-allowed}
+input{display:block;width:100%;background:var(--pane);border:1px solid #55717a;border-radius:9px;padding:12px;color:white;font:inherit}
+label{display:block;margin:10px 0 6px;font-size:.9rem}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.stat{border:1px solid var(--line);background:var(--pane);border-radius:11px;padding:13px 12px}
+.stat strong{font-size:1.5rem;display:block;line-height:1.2}
+.stat small{color:var(--muted);font-size:.78rem}
+.tabbar{display:flex;gap:8px;margin:18px 0 12px;flex-wrap:wrap}
+.tabbar button{margin:0;min-width:140px}
+.tabbar button[aria-selected=true]{color:#08291c;background:var(--accent);border-color:var(--accent);font-weight:700}
+.workout,.movement{background:var(--pane);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+.workout-header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.workout-title{font-weight:700;overflow-wrap:anywhere}
+.workout-date{color:var(--muted);font-size:.85rem}
+.exercise{border-top:1px solid var(--line);padding:12px 0 4px}
+.exercise h4{margin:0 0 7px;font-size:.94rem}
+.sets{padding:0;list-style:none;margin:0;display:flex;flex-wrap:wrap;gap:7px}
+.sets li{font-size:.83rem;border:1px solid #49616c;border-radius:7px;padding:5px 9px;overflow-wrap:anywhere}
+.sets li.done{border-color:#4e9978;color:#abf5cd}
+.movement{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.movement-name{font-weight:650;overflow-wrap:anywhere}
+.pill{border:1px solid #739d86;color:#c1f8d9;padding:3px 8px;border-radius:30px;font-size:.76rem;white-space:nowrap}
+.smallnote{color:var(--muted);font-size:.82rem}
+.result{margin:12px 0;color:var(--muted)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #f0d17d;outline-offset:3px}
+[hidden]{display:none!important}
+@media(max-width:680px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.tabbar button{flex:1}}
+</style></head><body><main>
+<header>
+<p class="eyebrow">STAGE 6C3A · PRIVATE APP PREVIEW · LOCALHOST ONLY</p>
+<h1>Lift Journal 2.0</h1>
+<p class="note">Encrypted History and Movements — read only</p>
+</header>
+<section class="card warning" role="note">
+<strong>Experimental preview, not the production workout app.</strong>
+This page reads ONLY your account-linked Stage 6C2 encrypted test compartment.
+It cannot start, edit, delete, import, migrate, or save workouts. The regular
+Lift Journal app still uses older unencrypted local storage. Use fictional data only.
+</section>
+<section class="card">
+<h2>Account protection</h2>
+<p id="c3-status" class="status" role="status" aria-live="polite">Verifying account…</p>
+<p class="note">Verified account: <strong id="c3-account">Checking…</strong></p>
+<button id="c3-check" type="button">Re-check account and encrypted storage</button>
+<a class="link" href="./private-preview.html">Account sign-in / sign-out</a>
+</section>
+<section class="card" id="c3-unlock-area" hidden>
+<h2>Unlock private workout interface</h2>
+<p class="note">Enter the same separate encryption passphrase as Stage 6C2B. It is only used in memory during decryption and is not saved by this page.</p>
+<label for="c3-passphrase">Separate encryption passphrase</label>
+<input type="password" id="c3-passphrase" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="1024">
+<button id="c3-unlock" class="primary" type="button">Unlock private History & Movements</button>
+<button id="c3-lock" type="button">Lock and hide private information</button>
+</section>
+<section id="c3-private" hidden aria-label="Decrypted workout interface">
+<div class="card">
+<h2>Your private workout summary</h2>
+<p class="note">Only the separate Stage 6C2 encrypted test copy is shown. Data disappears when locked, the tab is hidden, focus is lost or accounts change.</p>
+<div class="stats">
+<div class="stat"><strong id="c3-workouts">—</strong><small>Workouts</small></div>
+<div class="stat"><strong id="c3-favorites">—</strong><small>Favorites</small></div>
+<div class="stat"><strong id="c3-meals">—</strong><small>Saved meals</small></div>
+<div class="stat"><strong id="c3-revision">—</strong><small>Encrypted revision</small></div>
+</div>
+</div>
+<nav class="tabbar" aria-label="Private workout screens" role="tablist">
+<button id="c3-tab-history" role="tab" aria-selected="true" aria-controls="c3-history" type="button">History</button>
+<button id="c3-tab-movements" role="tab" aria-selected="false" aria-controls="c3-movements" type="button">Movements</button>
+</nav>
+<section class="card" id="c3-history" role="tabpanel" aria-labelledby="c3-tab-history">
+<h2>Workout History</h2>
+<p class="note">Completed and in-progress workouts from this encrypted account, with exercise sets, reps and weights. No editing is enabled.</p>
+<label for="c3-history-filter">Find a workout or exercise</label>
+<input id="c3-history-filter" type="search" autocomplete="off" placeholder="Search workout name or movement">
+<p id="c3-history-count" class="result"></p>
+<div id="c3-history-list"></div>
+</section>
+<section class="card" id="c3-movements" role="tabpanel" aria-labelledby="c3-tab-movements" hidden>
+<h2>Movements</h2>
+<p class="note">Favorite movements and exercise names found in your 100 most recent encrypted workouts. Stars are display-only in this test.</p>
+<label for="c3-movement-filter">Find a movement</label>
+<input id="c3-movement-filter" type="search" autocomplete="off" placeholder="Search movements">
+<p id="c3-movement-count" class="result"></p>
+<div id="c3-movement-list"></div>
+</section>
+<div class="card">
+<button type="button" id="c3-lock-open">Lock and hide private information</button>
+</div>
+</section>
+<p><a class="link" href="./private-workout-test.html">Return to Stage 6C2B private workout test</a></p>
+<p><a class="link" href="./index.html">Open unchanged regular localhost Lift Journal app</a></p>
+<p class="note">Production GitHub Pages unchanged. No automatic cloud synchronization or public signup. The decrypted preview never writes your workouts back to localStorage.</p>
+</main>
+<script src="./auth-config.js"></script>
+<script type="module" src="./stage6c3a-readonly-ui.mjs"></script>
+</body></html>
