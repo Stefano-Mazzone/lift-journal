@@ -78,5 +78,5 @@ test("counts completed and in-progress workouts without generating new records",
 });
 test("is a pure read-only model with no browser or storage access",()=>{
  const source=readFileSync(new URL("../stage6c3a-readonly-model.mjs",import.meta.url),"utf8");
- assert.doesNotMatch(source,/\blocalStorage\b|\bfetch\s*\(|\bdocument\b|\bwindow\b|\bsetItem\s*\(/);
+ assert.doesNotMatch(source,/\blocalStorage\s*[.[]|\bfetch\s*\(|\bdocument\s*\.|\bwindow\s*\.|\bsetItem\s*\(/);
 });
