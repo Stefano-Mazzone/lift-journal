@@ -1,6 +1,6 @@
 # Lift Journal 2.0 — Stage 6C2B private workout-entry test
 
-**Status (November 17, 2026):** Draft PR #11 implementation completed, **owner Chrome test pending**. Eight isolated pure-schema/static checks and five mocked UI checks passed. Full Node suite not executed in this environment. Stage 6C2A read/write/lock/reload/account-switch tests already passed in the owner's Chrome session. Production unchanged.
+**Status (November 18, 2026):** Draft PR #11 implementation completed; **owner Chrome happy-path save, reload and original-data-isolation checks passed.** Eight isolated pure-schema/static checks and five mocked UI checks passed; full Node suite not executed in this environment. Production unchanged and PR remains draft. A refreshed encrypted v2 backup after revision 3 is not yet confirmed.
 
 ## Why this is separate instead of modifying the main app
 
@@ -32,6 +32,14 @@ Stage 6C2A encrypted Test User compartment: **2 workouts, 3 favorites, 1 meal, e
 7. Open normal `index.html` in a separate tab and confirm unchanged **2 workouts / 2 favorites**; do not import/sync any data. Return to Stage 6C2A lab and confirm v2 compartment now has revision 3 / 3 workouts / 3 favorites.
 8. Lock Stage 6C2B and optionally verify Admin can't see private area. Keep originals and export another encrypted v2 backup from lab if desired. v2 export does **not** yet have a verified restore workflow.
 
+## Owner Chrome verification — November 18, 2026
+
+- Opened `private-workout-test.html` on localhost `127.0.0.1:8006` in the existing Chrome profile. Screenshot showed verified original Test User, linked device ownership and existing v2 encrypted compartment. Workout data was not visible until passphrase unlock.
+- After entering existing separate passphrase, screenshot showed **2 private workouts, 3 favorite movements, 1 saved meal and encrypted revision 2**, with original fictional workout titles.
+- Using the inline review/confirmation, saved a fictional completed **Goblet Squat** workout dated **2026-11-18** with **20 kg × 10 reps, 1 set**. Screenshot showed successful encrypted write and independent readback at **revision 3**, with **3 workouts, 3 favorites, 1 meal**.
+- Hard-refreshed the browser and unlocked again. Screenshot showed **revision 3, 3 workouts, 3 favorites, 1 meal**, and `TEST - Stage 6C2B Private Workout · 2026-11-18 · Goblet Squat` alongside the two earlier records. No duplicate.
+- Opened original `index.html` and user explicitly reported **PASSED** for **2 original fictional workouts and 2 saved favorites**, confirming the Stage 6C2B encrypted test write did not alter the legacy app's displayed data.
+- This verifies the single-user, single-tab save/reload and original-data-isolation test case only. It is **not** evidence of full original-app privacy or completed multi-account/negative-case browser tests for Stage 6C2B. Await revision-3 encrypted export and remaining failure-mode tests before further migration steps.
 ## Release blockers — not done
 
 - Regular `index.html` still loads plaintext `lift-journal-v1` before authentication; user switching accounts in the original app can see that data. Full privacy NOT achieved.
