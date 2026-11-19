@@ -47,6 +47,11 @@ Stage 6C2A encrypted Test User compartment: **2 workouts, 3 favorites, 1 meal, e
 - On clicking **Confirm encrypted TEST workout save**, Stage 6C2B rejected the save, showing: `Private workout save not confirmed: Unable to unlock vault. Check account and passphrase; no data was changed. No original workout key was written. Reopen and inspect before any retry.`
 - The user then used the correct separate passphrase to reopen the compartment. Screenshot verified **3 workouts, 3 favorites, 1 meal, encrypted revision 3**, with `TEST - Stage 6C2B Private Workout` present exactly once and the two earlier workouts retained. **Incorrect-passphrase save rejection and data integrity test PASSED.**
 - This is a single negative-path browser test; broader security, multi-tab race, interrupted commits, quota limits, cross-account Stage 6C2B browser checks and full-app encryption remain untested.
+## Owner Chrome Stage 6C2B cross-account access check
+
+- Owner signed out of original linked Test User and signed in to the existing Admin test account. Stage 6C1 read-only viewer correctly showed `PRIVATE VIEW LOCKED` for the Admin account.
+- In Stage 6C2B `private-workout-test.html`, screenshot showed **`PRIVATE WORKOUT LOCKED: this browser's encrypted test history belongs to a different linked account.`** The encrypted unlock field, workout titles, history counts and workout-entry controls were all hidden. **Admin account restriction browser scenario PASSED.**
+- Still pending: Admin sign-out, original Test User sign-in, encrypted revision 3 data re-unlock/preservation verification after account switching; other failure scenarios and real original-app account isolation remain untested.
 ## Release blockers — not done
 
 - Regular `index.html` still loads plaintext `lift-journal-v1` before authentication; user switching accounts in the original app can see that data. Full privacy NOT achieved.
