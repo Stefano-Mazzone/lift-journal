@@ -66,7 +66,7 @@ function setup(account="test-user") {
    "favorites:$('c3-favorites').textContent,revision:$('c3-revision').textContent,"+
    "historyHidden:$('c3-history').hidden,movementsHidden:$('c3-movements').hidden}),"+
    "signout:()=>{verifiedUser=null;compartmentExists=false;lock('Account signed out.')}, "+
-   "events};";
+   "};";
  const app=new Function("window","document","location","localStorage",
     "inspectCompartment","openCompartment","DEVICE_OWNER_KEY","deviceOwnerStatus",
     "buildReadOnlyPrivateAppModel","fakeClient",code)(
@@ -100,7 +100,7 @@ test("owner passphrase opens revision 3 and renders real History & Movements",as
  await app.click("c3-tab-movements");
  assert.equal(app.state().historyHidden,true);
  assert.equal(app.state().movementsHidden,false);
- assert.match(flatten(element("c3-movement-list")),'★ Favorite' instanceof RegExp? /★ Favorite/:/★ Favorite/);
+ assert.match(flatten(element("c3-movement-list")),/★ Favorite/);
 });
 test("history and movement filters render matching records only",async()=>{
  const {app,element,flatten}=setup();
